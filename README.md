@@ -2,10 +2,12 @@
 
 A browser based wiring harness planning tool. 
 
+![layout tab](https://github.com/cegan09/HarnessPlanner/blob/main/images/Layout.png)
+
 ## Running it
 Two options for running:
 1. Open `index.html` in any modern browser for a single instance
-2. Serve the page using `py -m http.server 8347` to make it generally available to multiple instances at localhost:8347 or <local IP Address>:8347
+2. Serve the page using `py -m http.server 8347` to make it generally available to multiple instances at localhost:8347 or (local IP Address):8347
 
 ## AI Disclosure
 This tool was created with the assistance of AI coding tools. I'm a mechanical engineer by training with no formal software education, so coding tools allow me to focus more time on the things I'm good at and less time fighting coding skill limitations. I do my best to review code before publishing it so that I have an understanding of what has been written and created. 
@@ -37,10 +39,14 @@ Attach a photo to have it show up on the diagram and in the pinout editor.
 
 **⭳ Save library / ⭱ Load library** keep the library in a file of its own, so the connectors you've already drawn up can be pulled into the next project. Loading adds to the list you've already defined. Duplicate connectors whose name is already in the project is skipped, and nothing already placed on a harness is disturbed. You can point Load at a saved library or at any project file.
 
+![connector library](https://github.com/cegan09/HarnessPlanner/blob/main/images/connector_library.png)
+
 ### 4. Assign signals (Pinouts & Signals tab)
 Signals work like ECAD nets: assign the same signal to pins on different connectors and they're assumed connected by a wire. Click any pin on the visual pin map (or in the pin table) and a popup lets you pick the signal, create a new one, or clear the pin. Wire color (solid or striped, with a color picker for each part) is defined **once per signal**, so the same signal is guaranteed the same color everywhere it appears.
 
 **⭳ Save signals / ⭱ Load signals** do the same thing for the signal list, so a house standard set of nets, colors and gauges can be reused across projects. Same rules: it merges, and signals whose name already exists are left alone.
+
+![signals and pinout](https://github.com/cegan09/HarnessPlanner/blob/main/images/signals_and_pinout.png)
 
 ### 5. View the wires (Layout tab)
 - **Bundle view**: the harness as thick trunk lines, with each connector on a single clean tether. Wire colors show as a strip of chips on the connector box, and selecting a connector lists every pin with its signal, color, and gauge in the right panel.
@@ -69,6 +75,8 @@ Set lengths on legs (select a leg in Layout) and a **Lead** on each connector (t
 ### 7. Compare & mate harnesses (Compare / Mates tab)
 Put two connectors side by side (typically from two different harnesses) and check pin-for-pin that the signals line up. **Link as mates** to make it permanent: from then on, any pinout edit that breaks the match raises an alert in the top bar, a badge on the Compare tab, and a red **!** on the affected connector in the layout until you resolve it.
 
+![compare](https://github.com/cegan09/HarnessPlanner/blob/main/images/compare.png)
+
 ## Where your work is saved
 
 Projects live in a `.json` file on your disk. Save new projects with **Save As** (or the "Not saved to a file" button in the top bar). The top bar shows `💾 your-project.json` while it's connected. **Open** loads a project file, **Save** (`Ctrl+S`) forces an immediate write, and **New** starts a blank project and asks where to put it.
@@ -95,14 +103,7 @@ The connector library and the signal list can also be saved to files of their ow
 | `Ctrl+Z` / `Ctrl+Y` | Undo / Redo |
 | Double-click a connector | Jump to its pinout |
 
-## Files
 
-Plain HTML/CSS/JS, no dependencies:
-`index.html` · `css/style.css` · `js/model.js` (data + undo + persistence) ·
-`js/layout.js` (canvas editor) · `js/pinout.js` · `js/library.js` ·
-`js/routing.js` (wire runs + lengths, shared by canvas and build sheet) ·
-`js/buildsheet.js` · `js/compare.js` · `js/app.js` (shell) ·
-`js/ui.js` (helpers)
 
 ## License
 
