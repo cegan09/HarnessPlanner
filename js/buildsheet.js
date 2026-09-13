@@ -7,6 +7,92 @@ const BuildSheetView = (() => {
   let scope = "current";   // current | all
 
   const round = (v) => Math.round(v * 10) / 10;
+  let spare = 10;          // % extra added to the order quantities
+
+  /* ---------- wire-to-order grouping ---------- */
+
+  // Two signals that share a gauge and an identical colour are the same spool
+  // of wire, so their lengths add up into one line to buy.
+  const spoolKey = (sig) => {
+    const c = sig.color || {};
+    const style = c.style || "solid";
+    return [sig.gauge || "", style, (c.base || "").toLowerCase(),
+      style === "striped" ? (c.stripe || "").toLowerCase() : ""].join("|");
+  };
+
+  function orderGroups(entries) {
+    const groups = new Map();
+    for (const { sig, length, incomplete } of entries) {
+      const key = spoolKey(sig);
+      let g = groups.get(key);
+      if (!g) {
+        g = { gauge: sig.gauge || "", color: sig.color, length: 0, wires: 0, unknown: 0, signals: new Set() };
+        groups.set(key, g);
+      }
+      g.wires++;
+      g.signals.add(sig.name);
+      if (incomplete) g.unknown++;
+      else g.length += length;
+    }
+    return [...groups.values()].sort((a, b) =>
+      (a.gauge || "~~").localeCompare(b.gauge || "~~", undefined, { numeric: true })
+      || UI.colorLabel(a.color).localeCompare(UI.colorLabel(b.color)));
+  }
+
+  // A friendlier buying unit alongside the project's own unit.
+  function inOrderUnits(v, unit) {
+    if (unit === "in") return { v: v / 12, u: "ft" };
+    if (unit === "cm") return { v: v / 100, u: "m" };
+    if (unit === "mm") return { v: v / 1000, u: "m" };
+    return null;
+  }
+
+  function orderTable(entries, unit) {
+    const groups = orderGroups(entries);
+    const wrap = el("div", {});
+    if (!groups.length) {
+      wrap.appendChild(el("div", { class: "muted small" }, "Nothing to order yet."));
+      return wrap;
+    }
+    const alt = inOrderUnits(1, unit);
+    const table = el("table", { class: "data sheet-table", style: { maxWidth: "760px" } },
+      el("tr", {},
+        el("th", {}, "Gauge"), el("th", {}, "Colour"), el("th", {}, "Wires"),
+        el("th", {}, `Length (${unit})`),
+        alt ? el("th", {}, `(${alt.u})`) : null,
+        el("th", { title: `Length plus ${spare}% spare` }, `Order +${spare}%`)));
+    for (const g of groups) {
+      const padded = g.length * (1 + spare / 100);
+      const altLen = inOrderUnits(padded, unit);
+      table.appendChild(el("tr", { title: [...g.signals].sort().join(", ") },
+        el("td", {}, g.gauge || el("span", { class: "muted" }, "unspecified")),
+        el("td", {}, UI.swatch(g.color), " ",
+          el("span", {}, UI.colorLabel(g.color)),
+          el("span", { class: "muted small" }, "  " + UI.colorName(g.color))),
+        el("td", {}, String(g.wires) + (g.unknown ? ` (${g.unknown} unknown)` : "")),
+        el("td", {}, String(round(g.length))),
+        alt ? el("td", { class: "muted" }, String(round(g.length / (unit === "in" ? 12 : unit === "cm" ? 100 : 1000)))) : null,
+        el("td", {}, el("strong", {}, String(round(padded))
+          + (altLen ? ` ${unit}  ≈ ${Math.ceil(altLen.v * 10) / 10} ${altLen.u}` : ` ${unit}`)))));
+    }
+    wrap.appendChild(table);
+    const anyUnknown = groups.some((g) => g.unknown);
+    if (anyUnknown) {
+      wrap.appendChild(el("div", { class: "muted small" },
+        "Wires with an unknown length aren't counted — set the missing leg lengths on the Layout tab."));
+    }
+    return wrap;
+  }
+
+  function spareControl(onChange) {
+    const input = el("input", {
+      type: "number", min: 0, max: 100, step: 5, value: spare,
+      style: { width: "64px" },
+      onchange: (e) => { spare = Math.max(0, Math.min(100, Number(e.target.value) || 0)); onChange(); },
+    });
+    return el("div", { class: "compare-side" },
+      el("span", { class: "side-title" }, "Spare %"), input);
+  }
 
   function render() {
     const root = document.getElementById("tab-build");
@@ -24,13 +110,27 @@ const BuildSheetView = (() => {
     scopeSel.value = scope;
     root.appendChild(el("div", { class: "compare-pickers" },
       el("div", { class: "compare-side" }, el("span", { class: "side-title" }, "Scope"), scopeSel),
+      spareControl(render),
       el("div", { class: "compare-side" }, el("span", { class: "side-title" }, " "),
         el("div", { class: "side-row" },
-          el("button", { onclick: () => exportCSV(harnesses) }, "⭳ Export CSV"),
+          el("button", { onclick: () => exportCSV(harnesses) }, "⭳ Wire list CSV"),
+          el("button", { onclick: () => exportOrderCSV(harnesses) }, "⭳ Order list CSV"),
           el("button", { onclick: () => window.print() }, "🖨 Print")))));
 
     const body = el("div", { class: "compare-body" });
     for (const h of harnesses) body.appendChild(harnessSection(h));
+
+    // one combined shopping list when looking at the whole project
+    if (harnesses.length > 1) {
+      const unit = p.unit;
+      const grand = el("div", { class: "sheet-section" });
+      grand.appendChild(el("h3", {}, "Whole project — wire to order"));
+      grand.appendChild(el("div", { class: "muted small" },
+        `Every harness combined (${harnesses.map((x) => x.name).join(", ")}).`));
+      grand.appendChild(orderTable(allEntries(harnesses), unit));
+      body.appendChild(grand);
+    }
+
     root.appendChild(body);
     body.scrollTop = top;
   }
@@ -145,25 +245,32 @@ const BuildSheetView = (() => {
       wrap.appendChild(box);
     }
 
-    /* totals */
+    /* wire to order */
     const complete = rows.filter((r) => !r.len.incomplete);
     const total = complete.reduce((a, r) => a + r.len.length, 0);
-    const byGauge = {};
-    for (const r of complete) {
-      const g = r.run.sig.gauge || "unspecified gauge";
-      byGauge[g] = (byGauge[g] || 0) + r.len.length;
-    }
-    wrap.appendChild(el("h4", {}, "Totals"));
+    wrap.appendChild(el("h4", {}, "Wire to order"));
     wrap.appendChild(el("div", { class: "muted small" },
-      `${rows.length} wires · ${round(total)} ${unit} of wire`
-      + (complete.length < rows.length ? ` (from the ${complete.length} with known lengths)` : "")));
-    const gt = el("table", { class: "data sheet-table", style: { maxWidth: "360px" } },
-      el("tr", {}, el("th", {}, "Gauge"), el("th", {}, `Length (${unit})`)));
-    for (const [g, v] of Object.entries(byGauge).sort()) {
-      gt.appendChild(el("tr", {}, el("td", {}, g), el("td", {}, String(round(v)))));
-    }
-    if (Object.keys(byGauge).length) wrap.appendChild(gt);
+      `${rows.length} wires · ${round(total)} ${unit} total`
+      + (complete.length < rows.length ? ` (from the ${complete.length} with known lengths)` : "")
+      + " · grouped by gauge and colour, so signals sharing a spool add up together."));
+    wrap.appendChild(orderTable(entriesOf(h, rows), unit));
     return wrap;
+  }
+
+  // Flatten a harness's wires into {sig, length, incomplete} for grouping.
+  const entriesOf = (h, rows) => rows.map((r) => ({
+    sig: r.run.sig, length: r.len.length, incomplete: r.len.incomplete,
+  }));
+
+  function allEntries(harnesses) {
+    const out = [];
+    for (const h of harnesses) {
+      for (const w of Routing.computeRuns(h).wires) {
+        const len = Routing.runLength(h, w);
+        out.push({ sig: w.sig, length: len.length, incomplete: len.incomplete });
+      }
+    }
+    return out;
   }
 
   function exportCSV(harnesses) {
@@ -191,9 +298,48 @@ const BuildSheetView = (() => {
         ].map(esc).join(","));
       }
     }
-    const name = (Model.get().name || "harness").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-");
-    UI.download(name + "-wire-list.csv", lines.join("\r\n"), "text/csv");
+    UI.download(projectFileName() + "-wire-list.csv", lines.join("\r\n"), "text/csv");
   }
+
+  function exportOrderCSV(harnesses) {
+    const unit = Model.get().unit;
+    const alt = inOrderUnits(1, unit);
+    const esc = (v) => {
+      const s = String(v == null ? "" : v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const head = ["Gauge", "Colour", "Colour codes", "Wires", `Length (${unit})`, `Order +${spare}% (${unit})`];
+    if (alt) head.push(`Order +${spare}% (${alt.u})`);
+    head.push("Signals");
+    const lines = [head.join(",")];
+    const emit = (label, entries) => {
+      for (const g of orderGroups(entries)) {
+        const padded = g.length * (1 + spare / 100);
+        const row = [
+          g.gauge || "unspecified", UI.colorLabel(g.color), UI.colorName(g.color),
+          g.wires, round(g.length), round(padded),
+        ];
+        if (alt) row.push(Math.ceil(inOrderUnits(padded, unit).v * 10) / 10);
+        row.push([...g.signals].sort().join("; "));
+        lines.push(row.map(esc).join(","));
+      }
+    };
+    if (harnesses.length > 1) {
+      lines.push(esc("— whole project —"));
+      emit("all", allEntries(harnesses));
+      for (const h of harnesses) {
+        lines.push("");
+        lines.push(esc("— " + h.name + " —"));
+        emit(h.name, allEntries([h]));
+      }
+    } else {
+      emit("", allEntries(harnesses));
+    }
+    UI.download(projectFileName() + "-order-list.csv", lines.join("\r\n"), "text/csv");
+  }
+
+  const projectFileName = () =>
+    (Model.get().name || "harness").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-");
 
   return { render };
 })();

@@ -85,6 +85,35 @@ const UI = (() => {
     return color.style === "striped" ? `${color.base} / ${color.stripe} stripe` : color.base;
   }
 
+  // Plain-English colour names, for things you read out loud at the parts
+  // counter. Custom colours snap to the nearest common wire colour.
+  const COLOR_NAMES = [
+    ["Red", "#d02020"], ["Black", "#111111"], ["White", "#f5f5f5"], ["Yellow", "#ffd400"],
+    ["Green", "#0a8a30"], ["Blue", "#1560d4"], ["Orange", "#ff7f00"], ["Violet", "#7b2fbf"],
+    ["Brown", "#8b5a2b"], ["Grey", "#9aa0ab"], ["Pink", "#ff69b4"], ["Cyan", "#00b8b8"],
+    ["Dk Brown", "#7a4a1e"], ["Lt Green", "#c8e83c"],
+  ];
+
+  function nearestColorName(hex) {
+    if (!/^#[0-9a-f]{6}$/i.test(hex || "")) return hex || "?";
+    const n = parseInt(hex.slice(1), 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    let best = null, bestD = Infinity;
+    for (const [name, ref] of COLOR_NAMES) {
+      const m = parseInt(ref.slice(1), 16);
+      const dr = r - ((m >> 16) & 255), dg = g - ((m >> 8) & 255), db = b - (m & 255);
+      const d = dr * dr + dg * dg + db * db;
+      if (d < bestD) { bestD = d; best = name; }
+    }
+    return best;
+  }
+
+  function colorLabel(color) {
+    if (!color) return "";
+    const base = nearestColorName(color.base);
+    return color.style === "striped" ? `${base} / ${nearestColorName(color.stripe)} stripe` : base;
+  }
+
   /* ---------- pin grid renderer (shared by library + pinout) ---------- */
   // opts: { cell, signalFor(pin)->signal|null, onPinClick(pin), titleFor(pin), showNumbers }
   let clipCounter = 0;
@@ -262,5 +291,5 @@ const UI = (() => {
     img.src = url;
   }
 
-  return { el, svgEl, PALETTE, contrast, visibleOnDark, swatch, swatchCSS, colorName, pinGrid, modal, closeModal, promptText, confirmBox, choose, download, saveJSON, openJSON, fileToDataURL };
+  return { el, svgEl, PALETTE, contrast, visibleOnDark, swatch, swatchCSS, colorName, colorLabel, nearestColorName, pinGrid, modal, closeModal, promptText, confirmBox, choose, download, saveJSON, openJSON, fileToDataURL };
 })();
