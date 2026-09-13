@@ -1,11 +1,11 @@
 # Harness Planner
 
-A browswer based wiring harness planning tool. 
+A browser based wiring harness planning tool. 
 
 ## Running it
 Two options for running:
 1. Open `index.html` in any modern browser for a single instance
-2. Serve the page using `py -m http.server 8347` to make it generally availible to multiple instances at localhost:8347 or <local IP Address>:8347
+2. Serve the page using `py -m http.server 8347` to make it generally available to multiple instances at localhost:8347 or <local IP Address>:8347
 
 ## AI Disclosure
 This tool was created with the assistance of AI coding tools. I'm a mechanical engineer by training with no formal software education, so coding tools allow me to focus more time on the things I'm good at and less time fighting coding skill limitations. I do my best to review code before publishing it so that I have an understanding of what has been written and created. 
@@ -81,6 +81,8 @@ Back up your project files like any other file: they're plain JSON.
 
 The connector library and the signal list can also be saved to files of their own and loaded into other projects.
 
+## Features to be added
+1. Connector Linking - the ability to mark connectors as mating pairs, used in the compare tab to ensure compatibility. 
 
 ## Shortcuts
 
