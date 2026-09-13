@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness Planner</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header id="topbar">
+  <div class="brand">🔌 Harness Planner</div>
+  <input id="projectName" class="project-name" title="Project name">
+  <div class="harness-picker">
+    <label>Harness</label>
+    <select id="harnessSelect"></select>
+    <button id="btnAddHarness" title="New harness">＋</button>
+    <button id="btnRenameHarness" title="Rename harness">✎</button>
+    <button id="btnDeleteHarness" title="Delete harness">🗑</button>
+  </div>
+  <div class="spacer"></div>
+  <button id="mateAlert" class="mate-alert hidden"></button>
+  <button id="saveStatus" class="save-status"></button>
+  <select id="unitSelect" title="Length units">
+    <option value="in">inches</option>
+    <option value="mm">mm</option>
+    <option value="cm">cm</option>
+    <option value="ft">feet</option>
+  </select>
+  <button id="btnUndo" title="Undo (Ctrl+Z)">↩</button>
+  <button id="btnRedo" title="Redo (Ctrl+Y)">↪</button>
+  <button id="btnOpen" title="Open a project file from your disk">Open</button>
+  <button id="btnSave" title="Save to the project file now (Ctrl+S)">Save</button>
+  <button id="btnSaveAs" title="Choose a new file on disk to save into">Save As</button>
+  <button id="btnNew" title="Start a blank project">New</button>
+  <input type="file" id="importFile" accept=".json,application/json" hidden>
+</header>
+
+<nav id="tabs">
+  <button class="tab active" data-tab="layout">Layout</button>
+  <button class="tab" data-tab="pinout">Pinouts &amp; Signals</button>
+  <button class="tab" data-tab="library">Connector Library</button>
+  <button class="tab" data-tab="build">Build Sheet</button>
+  <button class="tab" data-tab="compare">Compare / Mates <span id="compareBadge" class="badge hidden"></span></button>
+</nav>
+
+<main>
+  <section id="tab-layout" class="tabpane active">
+    <div id="layoutToolbar">
+      <div class="tool-group" id="modeButtons">
+        <button data-mode="select" class="active" title="Select / move / pan (V)">🖱 Select</button>
+        <button data-mode="point" title="Click empty space to add a connector point; click a line to branch a leg off it (A)">📍 Add point</button>
+        <button data-mode="connect" title="Click two points to join them; click empty space to chain new points (C)">🔗 Connect</button>
+        <button data-mode="jog" title="Click a line to add a bend/jog point there; drag bends in Select mode (J)">⤵ Jog</button>
+        <button data-mode="splice" title="Wire view: click on the harness to place a splice where a signal splits into individual wires (S)">🔀 Splice</button>
+        <button data-mode="delete" title="Click anything to delete it (X)">✂ Delete</button>
+      </div>
+      <div class="tool-group" id="viewButtons">
+        <button data-view="bundle" class="active" title="Show the harness as a bundle with wire stubs at each connector">Bundle view</button>
+        <button data-view="wires" title="Route every individual wire along the harness">Wire view</button>
+      </div>
+      <div class="tool-group">
+        <button id="btnFit" title="Zoom to fit">⛶ Fit</button>
+        <button id="btnZoomDir" title="Swap the scroll-wheel zoom direction (remembered between sessions)">⇅ Invert zoom</button>
+      </div>
+      <span class="toolbar-hint" id="toolbarHint"></span>
+    </div>
+    <div id="layoutMain">
+      <svg id="canvas"></svg>
+      <aside id="layoutSidebar"></aside>
+    </div>
+  </section>
+
+  <section id="tab-pinout" class="tabpane"></section>
+  <section id="tab-library" class="tabpane"></section>
+  <section id="tab-build" class="tabpane"></section>
+  <section id="tab-compare" class="tabpane"></section>
+</main>
+
+<div id="modalHost"></div>
+
+<script src="js/ui.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/model.js"></script>
+<script src="js/routing.js"></script>
+<script src="js/library.js"></script>
+<script src="js/pinout.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/buildsheet.js"></script>
+<script src="js/compare.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
