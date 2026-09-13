@@ -226,6 +226,30 @@ body.dragging, body.dragging * {
 .splice-dot { cursor: pointer; }
 .splice-dot.selected .splice-circle { stroke: var(--accent); stroke-width: 3.4; }
 .splice-count { fill: #11151d; font-size: 9px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+.splice-stem { stroke: #6b7382; stroke-width: 1.2; pointer-events: none; }
+.splice-flag { fill: #e8edf6; stroke: #6b7382; stroke-width: 1; }
+.splice-flag.auto { fill: #232a38; stroke: #8b93a7; }
+.splice-flag.selected { stroke: var(--accent); stroke-width: 2; }
+.splice-flag-text {
+  fill: #11151d;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.splice-flag-text.auto { fill: #dfe4ee; }
+.splice-tag-pill {
+  display: inline-block;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.splice-tag-pill.big { font-size: 13px; padding: 1px 8px; }
 .check-row {
   display: flex;
   align-items: center;
@@ -424,7 +448,39 @@ tr.status-nopin td { color: #565e70; }
 .sheet-section { margin-bottom: 28px; }
 .sheet-section h3 { margin: 0 0 8px; }
 .sheet-table { max-width: 1100px; margin-bottom: 10px; }
-.sheet-table td, .sheet-table th { white-space: nowrap; }
+/* long signal / connector names wrap and grow the row instead of forcing the
+   table wider than a printed page */
+.sheet-table td, .sheet-table th {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  vertical-align: top;
+}
+.sheet-table.resizable { table-layout: fixed; width: 100%; }
+.sheet-table.resizable th { position: relative; }
+.col-grip {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 9px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
+  touch-action: none;
+}
+.col-grip::after {
+  content: "";
+  position: absolute;
+  top: 15%;
+  left: 3px;
+  width: 2px;
+  height: 70%;
+  background: var(--line);
+  border-radius: 1px;
+}
+.col-grip:hover::after { background: var(--accent); }
+body.col-resizing { cursor: col-resize; user-select: none; }
+body.col-resizing * { user-select: none !important; }
 .splice-cell { color: #ffd66e; }
 .splice-box {
   border: 1px solid var(--line);
@@ -445,7 +501,12 @@ tr.status-nopin td { color: #565e70; }
   #tab-build { display: block !important; }
   #tab-build .compare-body { overflow: visible; padding: 0; }
   .sheet-table th { background: #eee; color: #000; }
+  .sheet-table { max-width: none !important; width: 100% !important; font-size: 10.5px; }
+  .sheet-table td, .sheet-table th { white-space: normal; overflow-wrap: break-word; }
+  .col-grip { display: none !important; }
+  .splice-tag-pill { border-color: #999; background: #eee; color: #000; }
   table.data th, table.data td { border-color: #999; }
+  table.data tr { page-break-inside: avoid; }
   .muted, .small { color: #444; }
   .splice-box { background: #fff; border-color: #999; page-break-inside: avoid; }
   .warn-box { background: #fff; color: #000; border-color: #999; }

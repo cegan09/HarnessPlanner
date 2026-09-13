@@ -59,6 +59,8 @@ When signals route to multiple destinations a splice is assumed at the nearest j
 
 Automatic splices draw as small hollow rings; explicit ones are solid. A dot carrying several signals shows a count.
 
+Every splice, automatic ones included, gets a short tag (`S1`, `S2`…) on a little flag next to it. Flags show in **both** bundle and wire view, so you can see where the joints land while building and look them up on the Build Sheet. Tags are ordered by creation, so they stay put unless you delete the splice or point they name.
+
 - **Add one** (`S`, wire view): click a junction, or anywhere along a leg, and tick the signals to splice there. Several signals can share one point. Unticked signals are left alone, they keep splicing automatically wherever they branch.
 - **Edit one**: select any splice dot. The panel lists every signal running through that point with a tick box; ones marked **auto** are automatic.
 - **Override**: untick a signal to suppress the splice there, and it routes straight through as separate individual wires instead. (Usually the cleaner answer is to give the runs different signal names, but both work.)
@@ -69,6 +71,8 @@ Automatic splices draw as small hollow rings; explicit ones are solid. A dot car
 Every physical wire in the harness, with its signal, type, color, gauge, both endpoints (connector + pin label) and its **cut length**, legs summed along the path plus the lead length at each connector. Splices are first-class: a spliced signal produces one wire from the splice to each endpoint, and each splice gets its own block showing where it sits along its leg and how long every wire running into it needs to be.
 
 Set lengths on legs (select a leg in Layout) and a **Lead** on each connector (the pigtail from the harness breakout to the terminal) to get real numbers; anything missing a length is flagged. The sheet also warns when a signal reaches more than two points without a splice defined.
+
+Wires ending at a splice name it by its tag (`S3`), matching the flag on the layout drawing, and each splice gets its own block further down listing every wire running into it. Table columns wrap rather than stretching, and can be dragged wider or narrower by the divider in the header; widths are remembered, and **↔ Reset columns** puts them back.
 
 At the bottom of each harness is a summary of **Wire to order**. Wires are grouped by gauge and color, so every signal sharing a spool rolls into one line: "18 AWG Red, 7 wires, 335 in ≈ 30.8 ft". Striped wire groups by the exact base/stripe pair, so red-with-yellow is counted separately from plain red. Lengths appear in the project's unit and in feet (or meters), with a **Spare %** allowance you set in the toolbar (10% by default). Hover a row to see which signals make it up. With scope set to all harnesses you also get one combined project-wide list at the end.
 

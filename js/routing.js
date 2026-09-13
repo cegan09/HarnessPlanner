@@ -239,7 +239,24 @@ const Routing = (() => {
       .sort((a, b) => a.sig.name.localeCompare(b.sig.name) || a.idx - b.idx)
       .forEach((w, i) => { w.rank = i; });
 
-    return { wires, runs: wires, points: Object.values(points), reach, splices, singles, warnings };
+    /* Give every splice — automatic ones included — a short tag (S1, S2…) so
+     * the drawing and the build sheet can refer to the same physical joint.
+     * Ordered by the underlying record/node id, which is creation order, so
+     * tags stay put as long as you don't delete the thing they name. */
+    const pointList = Object.values(points);
+    pointList.sort((a, b) => {
+      const ka = a.kind === "mid" ? "m" + a.splice.id : "n" + a.nodeId;
+      const kb = b.kind === "mid" ? "m" + b.splice.id : "n" + b.nodeId;
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
+    });
+    const tags = {};
+    pointList.forEach((p, i) => { p.tag = "S" + (i + 1); tags[p.key] = p.tag; });
+    for (const w of wires) {
+      w.fromTag = tags[w.fromKey] || null;
+      w.toTag = tags[w.toKey] || null;
+    }
+
+    return { wires, runs: wires, points: pointList, tags, reach, splices, singles, warnings };
   }
 
   /* ---------- lengths ---------- */
@@ -272,17 +289,24 @@ const Routing = (() => {
     return (names.length === 1 ? names[0] : names[0] + ` +${names.length - 1}`) + " splice";
   }
 
-  function nodeName(h, nodeId) {
+  /* Names a harness point. Points with a pile of connectors on them are
+   * summarised, since the full list makes tables unreadably wide; pass
+   * full=true where the whole list is actually wanted. */
+  function nodeName(h, nodeId, full) {
     const cs = h.connectors.filter((c) => c.nodeId === nodeId);
-    if (cs.length) return cs.map((c) => c.label).join(" / ");
+    if (cs.length) {
+      const names = cs.map((c) => c.label);
+      if (full || names.length <= 2) return names.join(" / ");
+      return `${names[0]} / ${names[1]} +${names.length - 2}`;
+    }
     const deg = h.segments.filter((s) => s.a === nodeId || s.b === nodeId).length;
     return deg >= 2 ? "junction" : "open end";
   }
 
-  function pointName(h, point) {
+  function pointName(h, point, full) {
     if (point.kind === "mid") return spliceName(point.splice);
     if (point.splice) return spliceName(point.splice);
-    return `splice @ ${nodeName(h, point.nodeId)}`;
+    return `splice @ ${nodeName(h, point.nodeId, full)}`;
   }
 
   // Describe one end of a wire for the build sheet / tooltips.
@@ -304,7 +328,7 @@ const Routing = (() => {
     const sp = Model.splicesOf(h).find((s) => s.nodeId === key && (s.signalIds || []).includes(sig.id));
     return {
       kind: "splice",
-      name: sp ? spliceName(sp) : `${sig.name} splice @ ${nodeName(h, key)}`,
+      name: sp ? spliceName(sp) : `splice @ ${nodeName(h, key)}`,
       pin: "—", nodeId: key, auto: !sp,
     };
   }

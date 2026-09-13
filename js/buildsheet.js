@@ -9,6 +9,73 @@ const BuildSheetView = (() => {
   const round = (v) => Math.round(v * 10) / 10;
   let spare = 10;          // % extra added to the order quantities
 
+  // default column widths, as percentages so they survive printing
+  //             #   Signal Type Color Gauge From  Pin  To   Pin  Length
+  const COLS_WIRES = [4, 16, 8, 14, 7, 16, 5, 16, 5, 9];
+
+  /* A splice endpoint shows its tag, so the drawing and this table can be
+   * read against each other. */
+  function endCell(end, tag) {
+    if (end.kind !== "splice") return el("td", {}, end.name);
+    return el("td", { class: "splice-cell" },
+      tag ? el("span", { class: "splice-tag-pill" }, tag) : null, " ", end.name);
+  }
+
+  /* ---------- resizable columns ---------- */
+
+  const savedCols = () => Model.getPrefs().buildCols || {};
+
+  function applyResizable(table, key, defaults) {
+    const saved = savedCols()[key];
+    const pcts = (Array.isArray(saved) && saved.length === defaults.length ? saved : defaults).slice();
+    const cg = document.createElement("colgroup");
+    for (const p of pcts) {
+      const c = document.createElement("col");
+      c.style.width = p + "%";
+      cg.appendChild(c);
+    }
+    // grab the header row before the colgroup shifts the child order
+    const headRow = table.querySelector("tr");
+    table.insertBefore(cg, table.firstChild);
+    table.classList.add("resizable");
+
+    const ths = headRow ? [...headRow.querySelectorAll("th")] : [];
+    ths.forEach((th, i) => {
+      if (i >= ths.length - 1) return;
+      const grip = el("span", { class: "col-grip", title: "Drag to resize" });
+      th.appendChild(grip);
+      grip.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const startX = e.clientX;
+        const tableW = table.getBoundingClientRect().width || 1;
+        const a0 = pcts[i], b0 = pcts[i + 1];
+        const move = (ev) => {
+          const d = ((ev.clientX - startX) / tableW) * 100;
+          // borrow width from the neighbour so the row always totals 100%
+          const a = Math.max(3, Math.min(a0 + b0 - 3, a0 + d));
+          pcts[i] = a;
+          pcts[i + 1] = a0 + b0 - a;
+          cg.children[i].style.width = pcts[i] + "%";
+          cg.children[i + 1].style.width = pcts[i + 1] + "%";
+        };
+        const up = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", up);
+          document.body.classList.remove("col-resizing");
+          Model.setPref("buildCols", { ...savedCols(), [key]: pcts.map((v) => Math.round(v * 10) / 10) });
+        };
+        document.body.classList.add("col-resizing");
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      });
+    });
+  }
+
+  function resetColumns() {
+    Model.setPref("buildCols", {});
+  }
+
   /* ---------- wire-to-order grouping ---------- */
 
   // Two signals that share a gauge and an identical colour are the same spool
@@ -115,6 +182,7 @@ const BuildSheetView = (() => {
         el("div", { class: "side-row" },
           el("button", { onclick: () => exportCSV(harnesses) }, "⭳ Wire list CSV"),
           el("button", { onclick: () => exportOrderCSV(harnesses) }, "⭳ Order list CSV"),
+          el("button", { onclick: resetColumns, title: "Restore the default column widths" }, "↔ Reset columns"),
           el("button", { onclick: () => window.print() }, "🖨 Print")))));
 
     const body = el("div", { class: "compare-body" });
@@ -139,16 +207,17 @@ const BuildSheetView = (() => {
     const wrap = el("div", { class: "sheet-section" });
     const unit = Model.get().unit;
     const { wires, points, singles, warnings } = Routing.computeRuns(h);
-    const rows = wires.map((w) => ({
-      run: w,
-      len: Routing.runLength(h, w),
-      from: Routing.endInfo(h, w.fromKey, w.sig),
-      to: Routing.endInfo(h, w.toKey, w.sig),
-    }));
-    // wires read better running pin -> splice than splice -> pin
-    for (const r of rows) {
-      if (r.from.kind === "splice" && r.to.kind === "pin") { const t = r.from; r.from = r.to; r.to = t; }
-    }
+    const rows = wires.map((w) => {
+      let from = Routing.endInfo(h, w.fromKey, w.sig);
+      let to = Routing.endInfo(h, w.toKey, w.sig);
+      let fromTag = w.fromTag, toTag = w.toTag;
+      // wires read better running pin -> splice than splice -> pin
+      if (from.kind === "splice" && to.kind === "pin") {
+        [from, to] = [to, from];
+        [fromTag, toTag] = [toTag, fromTag];
+      }
+      return { run: w, len: Routing.runLength(h, w), from, to, fromTag, toTag };
+    });
 
     wrap.appendChild(el("h3", {}, h.name,
       el("span", { class: "muted small" }, `  ${rows.length} wire${rows.length === 1 ? "" : "s"}`)));
@@ -183,21 +252,23 @@ const BuildSheetView = (() => {
     rows
       .sort((a, b) => a.run.sig.name.localeCompare(b.run.sig.name) || a.run.idx - b.run.idx)
       .forEach((r, i) => {
-        const { run, len, from, to } = r;
+        const { run, len, from, to, fromTag, toTag } = r;
         table.appendChild(el("tr", {},
           el("td", {}, String(i + 1)),
           el("td", {}, run.sig.name),
           el("td", { class: "muted" }, run.sig.type || "—"),
-          el("td", {}, UI.swatch(run.sig.color), " ", el("span", { class: "small" }, UI.colorName(run.sig.color))),
+          el("td", {}, UI.swatch(run.sig.color), " ",
+            el("span", { class: "small" }, UI.colorLabel(run.sig.color))),
           el("td", {}, run.sig.gauge || "—"),
-          el("td", { class: from.kind === "splice" ? "splice-cell" : "" }, from.name),
+          endCell(from, fromTag),
           el("td", {}, from.pin),
-          el("td", { class: to.kind === "splice" ? "splice-cell" : "" }, to.name),
+          endCell(to, toTag),
           el("td", {}, to.pin),
           el("td", {}, len.incomplete
             ? el("span", { class: "muted" }, len.length ? `≥ ${round(len.length)} ?` : "?")
             : String(round(len.length)))));
       });
+    applyResizable(table, "wires", COLS_WIRES);
     wrap.appendChild(table);
 
     /* splices */
@@ -211,13 +282,12 @@ const BuildSheetView = (() => {
         : Model.splicesOf(h).find((s) => s.nodeId === point.nodeId);
       const pos = rec ? Routing.splicePosition(h, rec) : null;
       const allAuto = point.signals.every((s) => s.auto);
-      const atKey = point.kind === "mid" ? Routing.spKey(point.splice.id) : point.nodeId;
-      const legs = rows.filter((r) => r.to.kind === "splice"
-        && (r.to.splice ? Routing.spKey(r.to.splice.id) : r.to.nodeId) === atKey);
+      const legs = rows.filter((r) => r.toTag === point.tag);
 
-      const box = el("div", { class: "splice-box" });
+      const box = el("div", { class: "splice-box", id: "splice-" + point.tag });
       box.appendChild(el("div", { class: "side-row" },
-        el("strong", {}, Routing.pointName(h, point)),
+        el("span", { class: "splice-tag-pill big" }, point.tag),
+        el("strong", {}, Routing.pointName(h, point, true)),
         allAuto ? el("span", { class: "sig-type-tag" }, "automatic") : null,
         el("span", { class: "muted small" }, `${legs.length} wires`)));
       box.appendChild(el("div", { class: "side-row" },
@@ -279,7 +349,7 @@ const BuildSheetView = (() => {
       const s = String(v == null ? "" : v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
-    const lines = [["Harness", "Signal", "Type", "Color", "Gauge", "From", "From pin", "To", "To pin", `Length (${unit})`, "Notes"].join(",")];
+    const lines = [["Harness", "Signal", "Type", "Colour", "Colour codes", "Gauge", "From", "From pin", "To", "To pin", `Length (${unit})`, "Notes"].join(",")];
     for (const h of harnesses) {
       const { wires } = Routing.computeRuns(h);
       wires.sort((a, b) => a.sig.name.localeCompare(b.sig.name) || a.idx - b.idx);
@@ -287,13 +357,19 @@ const BuildSheetView = (() => {
         const len = Routing.runLength(h, w);
         let from = Routing.endInfo(h, w.fromKey, w.sig);
         let to = Routing.endInfo(h, w.toKey, w.sig);
-        if (from.kind === "splice" && to.kind === "pin") { const t = from; from = to; to = t; }
+        let fromTag = w.fromTag, toTag = w.toTag;
+        if (from.kind === "splice" && to.kind === "pin") {
+          [from, to] = [to, from];
+          [fromTag, toTag] = [toTag, fromTag];
+        }
         const notes = [];
         if (to.kind === "splice") notes.push(to.auto ? "to automatic splice" : "to splice");
         if (len.incomplete) notes.push("length incomplete");
+        const tagged = (end, tag) => (end.kind === "splice" && tag ? `${tag} ${end.name}` : end.name);
         lines.push([
-          h.name, w.sig.name, w.sig.type || "", UI.colorName(w.sig.color), w.sig.gauge || "",
-          from.name, from.pin, to.name, to.pin,
+          h.name, w.sig.name, w.sig.type || "", UI.colorLabel(w.sig.color), UI.colorName(w.sig.color),
+          w.sig.gauge || "",
+          tagged(from, fromTag), from.pin, tagged(to, toTag), to.pin,
           len.incomplete ? "" : round(len.length), notes.join("; "),
         ].map(esc).join(","));
       }

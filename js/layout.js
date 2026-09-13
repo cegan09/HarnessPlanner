@@ -747,8 +747,8 @@ const LayoutView = (() => {
     return (k - (arr.length - 1) / 2) * laneStep(arr.length);
   }
 
-  function wireGeometry(h) {
-    const info = Routing.computeRuns(h);
+  function wireGeometry(h, info) {
+    info = info || Routing.computeRuns(h);
     const laneMap = {};
     for (const w of info.wires) {
       const ids = new Set(w.steps.filter((s) => s.segId).map((s) => s.segId));
@@ -912,7 +912,9 @@ const LayoutView = (() => {
     if (!h) { applyTransform(); return; }
 
     const wiresOn = viewMode === "wires";
-    const geo = wiresOn ? wireGeometry(h) : null;
+    // splice points are wanted in both views, so route info is always computed
+    const routeInfo = Routing.computeRuns(h);
+    const geo = wiresOn ? wireGeometry(h, routeInfo) : null;
 
     /* segments (trunk polylines) */
     for (const seg of h.segments) {
@@ -968,39 +970,52 @@ const LayoutView = (() => {
       drawConnector(world, h, conn, wiresOn);
     }
 
-    /* splice points (wire view only) — explicit ones are solid, automatic
-     * ones (at junctions where a signal's destinations diverge) are hollow */
-    if (wiresOn) {
-      for (const point of geo.points) {
-        const pos = splicePointPos(h, point);
-        if (!pos) continue;
-        const sigs = point.signals.map((s) => s.sig);
-        const allAuto = point.signals.every((s) => s.auto);
-        const lit = !highlightSig || sigs.some((s) => s.id === highlightSig);
-        const selected = sel && sel.type === "splice" && sel.id === pointId(point);
-        const g = svgEl("g", {
-          class: "splice-dot" + (selected ? " selected" : ""),
-          opacity: lit ? null : DIM,
-        });
-        const tint = sigs.length === 1 ? UI.visibleOnDark(sigs[0].color.base) : "#c7cedd";
-        g.appendChild(svgEl("circle", {
-          cx: pos.x, cy: pos.y, r: allAuto ? 5 : 6.5,
-          fill: allAuto ? "#161a23" : tint,
-          stroke: allAuto ? tint : "#f5f5f5",
-          "stroke-width": allAuto ? 2 : 1.8,
-          class: "splice-circle",
-        }));
-        if (sigs.length > 1) {
-          g.appendChild(svgEl("text", {
-            x: pos.x, y: pos.y + 3.5, class: "splice-count",
-          }, String(sigs.length)));
-        }
-        g.appendChild(svgEl("title", {},
-          Routing.pointName(h, point) + (allAuto ? " (automatic)" : "")
-          + "\n" + sigs.map((s) => s.name).join(", ")));
-        g.addEventListener("pointerdown", (e) => onSpliceDown(e, point));
-        world.appendChild(g);
+    /* splice points, in both views — explicit ones are solid, automatic ones
+     * (at junctions where a signal's destinations diverge) are hollow. Each
+     * carries its tag on a little flag so it can be found on the bench and
+     * cross-referenced against the build sheet. */
+    for (const point of routeInfo.points) {
+      const pos = splicePointPos(h, point);
+      if (!pos) continue;
+      const sigs = point.signals.map((s) => s.sig);
+      const allAuto = point.signals.every((s) => s.auto);
+      const lit = !highlightSig || sigs.some((s) => s.id === highlightSig);
+      const selected = sel && sel.type === "splice" && sel.id === pointId(point);
+      const g = svgEl("g", {
+        class: "splice-dot" + (selected ? " selected" : ""),
+        opacity: lit ? null : DIM,
+      });
+      const tint = sigs.length === 1 ? UI.visibleOnDark(sigs[0].color.base) : "#c7cedd";
+      g.appendChild(svgEl("circle", {
+        cx: pos.x, cy: pos.y, r: allAuto ? 5 : 6.5,
+        fill: allAuto ? "#161a23" : tint,
+        stroke: allAuto ? tint : "#f5f5f5",
+        "stroke-width": allAuto ? 2 : 1.8,
+        class: "splice-circle",
+      }));
+      if (sigs.length > 1) {
+        g.appendChild(svgEl("text", { x: pos.x, y: pos.y + 3.5, class: "splice-count" }, String(sigs.length)));
       }
+
+      /* identifier flag */
+      const label = point.tag;
+      const fw = 9 + label.length * 6.6;
+      const fx = pos.x + 9, fy = pos.y - 22;
+      g.appendChild(svgEl("line", { x1: pos.x, y1: pos.y, x2: fx + 1, y2: fy + 14, class: "splice-stem" }));
+      g.appendChild(svgEl("rect", {
+        x: fx, y: fy, width: fw, height: 15, rx: 3,
+        class: "splice-flag" + (selected ? " selected" : "") + (allAuto ? " auto" : ""),
+      }));
+      g.appendChild(svgEl("text", {
+        x: fx + fw / 2, y: fy + 11.5,
+        class: "splice-flag-text" + (allAuto ? " auto" : ""),
+      }, label));
+
+      g.appendChild(svgEl("title", {},
+        `${label} — ${Routing.pointName(h, point)}${allAuto ? " (automatic)" : ""}`
+        + "\n" + sigs.map((s) => s.name).join(", ")));
+      g.addEventListener("pointerdown", (e) => onSpliceDown(e, point));
+      world.appendChild(g);
     }
 
     /* bend handles */
@@ -1345,7 +1360,7 @@ const LayoutView = (() => {
         : { nodeId: point.nodeId, rec };
       const unit = Model.get().unit;
 
-      sidebar.appendChild(el("h3", {}, "Splice point"));
+      sidebar.appendChild(el("h3", {}, "Splice ", el("span", { class: "splice-tag-pill" }, point.tag)));
       sidebar.appendChild(el("div", { class: "muted small" },
         point.kind === "mid" ? "Part-way along a leg" : `At ${Routing.nodeName(h, point.nodeId)}`));
 
