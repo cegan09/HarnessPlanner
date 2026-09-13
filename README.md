@@ -92,6 +92,7 @@ The connector library and the signal list can also be saved to files of their ow
 ## Features to be added
 1. Connector Linking - the ability to mark connectors as mating pairs, used in the compare tab to ensure compatibility.
 2. Add location notes on the layout view
+3. Connector replacement - ability to replace a connector with a different one, with interactive pin reassignment for already defined signals. Workflow right now is to delete and create a new connector. 
 
 ## Shortcuts
 
