@@ -70,7 +70,7 @@ Every physical wire in the harness, with its signal, type, color, gauge, both en
 
 Set lengths on legs (select a leg in Layout) and a **Lead** on each connector (the pigtail from the harness breakout to the terminal) to get real numbers; anything missing a length is flagged. The sheet also warns when a signal reaches more than two points without a splice defined.
 
-At the bottom of each harness is **Wire to order** — the shopping list. Wires are grouped by gauge and colour, so every signal sharing a spool rolls into one line: "18 AWG Red, 7 wires, 335 in ≈ 30.8 ft". Striped wire groups by the exact base/stripe pair, so red-with-yellow is counted separately from plain red. Lengths appear in the project's unit and in feet (or metres), with a **Spare %** allowance you set in the toolbar (10% by default). Hover a row to see which signals make it up. With scope set to all harnesses you also get one combined project-wide list at the end.
+At the bottom of each harness is a summary of **Wire to order**. Wires are grouped by gauge and color, so every signal sharing a spool rolls into one line: "18 AWG Red, 7 wires, 335 in ≈ 30.8 ft". Striped wire groups by the exact base/stripe pair, so red-with-yellow is counted separately from plain red. Lengths appear in the project's unit and in feet (or meters), with a **Spare %** allowance you set in the toolbar (10% by default). Hover a row to see which signals make it up. With scope set to all harnesses you also get one combined project-wide list at the end.
 
 **Wire list CSV** exports the cut list, **Order list CSV** the shopping list (including the signals behind each line), and **Print** gives a clean paper copy for the bench.
 
