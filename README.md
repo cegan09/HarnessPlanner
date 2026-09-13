@@ -90,7 +90,8 @@ Back up your project files like any other file: they're plain JSON.
 The connector library and the signal list can also be saved to files of their own and loaded into other projects.
 
 ## Features to be added
-1. Connector Linking - the ability to mark connectors as mating pairs, used in the compare tab to ensure compatibility. 
+1. Connector Linking - the ability to mark connectors as mating pairs, used in the compare tab to ensure compatibility.
+2. Add location notes on the layout view
 
 ## Shortcuts
 
