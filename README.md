@@ -51,7 +51,21 @@ Signals work like ECAD nets: assign the same signal to pins on different connect
 ### 5. View the wires (Layout tab)
 - **Bundle view**: the harness as thick trunk lines, with each connector on a single clean tether. Wire colors show as a strip of chips on the connector box, and selecting a connector lists every pin with its signal, color, and gauge in the right panel.
 - **Highlighting**: click any signal in the right panel or any wire row on a selected connector and every connector carrying that signal lights up so you can see at a glance where a signal runs.
-- **Wire view**: every individual wire routed along the harness to make it easier to check connections. This view still needs work, there are some oddities with how wires are rendered. 
+Individual wires live on their own **Wire Diagram** tab (below), not in this view.
+
+### 5b. Read the wiring (Wire Diagram tab)
+
+A schematic-style view of every individual wire, derived automatically from the layout. The Layout tab stays freeform for designing, this one squares everything off so it can be read while building.
+
+- Legs are drawn horizontal or vertical; a diagonal leg becomes an elbow. Jogs you added with the Jog tool are kept and squared off too.
+- Collinear legs join into one **corridor**, and a wire holds a single lane for the whole corridor. A wire crossing the harness is one dead-straight line, and turns onto a branch are true right angles.
+- When a wire leaves the bundle its lane stays empty rather than everything shuffling up, so neighbouring wires never wander.
+- Wires terminate **fanned out side by side** at a connector point rather than converging on it. The connector block sits clear of the harness and carries the per-pin colour chips.
+- Splice dots land where the lanes actually cross, so runs into and out of a splice stay square. An outline groups all the dots of one splice under its S number.
+- **Everything is draggable.** Drag a harness point to pull it clear of a fat bundle (this moves the real point, so the Layout tab follows); drag a connector block or a splice tag to tidy the drawing (those positions are local to this view). **↺ Reset placement** puts all the blocks and tags back.
+- Click a connector block to get its full pin list, signal, colour, gauge in the right panel, same as Layout; click a wire row to highlight where it runs, or double-click the block to jump to its pinout.
+- The **🔀 Splice** tool lives here: click a harness point or a leg and tick which signals splice there.
+- `V` select · `S` splice · `F` fit · `Esc` cancel.
 
 ### Splices
 
@@ -61,8 +75,8 @@ Automatic splices draw as small hollow rings; explicit ones are solid. A dot car
 
 Every splice, automatic ones included, gets a short tag (`S1`, `S2`…) on a little flag next to it. Flags show in **both** bundle and wire view, so you can see where the joints land while building and look them up on the Build Sheet. Tags are ordered by creation, so they stay put unless you delete the splice or point they name.
 
-- **Add one** (`S`, wire view): click a junction, or anywhere along a leg, and tick the signals to splice there. Several signals can share one point. Unticked signals are left alone, they keep splicing automatically wherever they branch.
-- **Edit one**: select any splice dot. The panel lists every signal running through that point with a tick box; ones marked **auto** are automatic.
+- **Add one** (`S`, on the Wire Diagram tab): click a harness point, or anywhere along a leg, and tick the signals to splice there. Several signals can share one point. Unticked signals are left alone, they keep splicing automatically wherever they branch.
+- **Edit one**: select any splice dot, on either tab. The panel lists every signal running through that point with a tick box; ones marked **auto** are automatic.
 - **Override**: untick a signal to suppress the splice there, and it routes straight through as separate individual wires instead. (Usually the cleaner answer is to give the runs different signal names, but both work.)
 - A part-way splice can be dragged along its leg, named, or positioned precisely by distance from either end. Splices drive the wire lengths on the Build Sheet.
 

@@ -6,8 +6,8 @@
  *    new points as you draw.
  *  - "Jog": click a line to insert a bend point (drag bends in Select mode)
  *    so legs can dogleg instead of running straight.
- *  - "Splice": (wire view) click on the harness to place a splice for a
- *    multi-endpoint signal; individual wires then fan out from the splice.
+ *  - Splices are placed and edited on the Wire Diagram tab; they are shown
+ *    here so you can see where the joints land while laying the harness out.
  *  - Bundle view: thick trunk lines with short colored wire stubs at each
  *    connector. Wire view: every wire routed individually along the trunk,
  *    with ECAD-style hop arcs where wires cross.
@@ -17,7 +17,7 @@ const LayoutView = (() => {
 
   let svg, sidebar;
   let scale = 1, panX = 0, panY = 0, panInitialized = false;
-  let mode = "select";          // select | point | connect | jog | splice | delete
+  let mode = "select";          // select | point | connect | jog | delete
   let viewMode = "bundle";      // bundle | wires
   let sel = null;               // {type:'node'|'seg'|'conn'|'splice', id}
   let connectFrom = null;       // node id while in connect mode
@@ -26,9 +26,10 @@ const LayoutView = (() => {
   let pendingMove = null;       // connector id waiting to be re-homed
 
   const GRID = 10;
-  const LANE = 9;               // wire-view lane spacing (max)
-  const LANE_MIN = 2.6;         // …squeezed to this on busy legs
-  const BUNDLE_W = 46;          // widest a wire bundle is allowed to fan
+  const LANE = 12;              // wire-view lane spacing (max)
+  const LANE_MIN = 4;           // …squeezed to this on busy legs
+  const BUNDLE_W = 66;          // widest a wire bundle is allowed to fan
+  const HUB_STEP = 13;          // spacing between per-signal splice dots
   const HOP_R = 5;              // hop arc radius
   const TRANS = 14;             // junction transition (fan) length
   const NODE_CLEAR = 26;        // crossings this close to a node aren't hopped
@@ -40,7 +41,6 @@ const LayoutView = (() => {
     point: "Click empty space to add a connector point · click a harness line to branch a leg off it",
     connect: "Click a point, then another point to join them — or click empty space to chain new points. Esc to stop.",
     jog: "Click a harness line to add a bend (jog) point there — then drag it in Select mode",
-    splice: "Click on the harness where a signal should split into individual wires",
     delete: "Click a point, line, bend, connector, or splice to delete it",
   };
 
@@ -73,7 +73,6 @@ const LayoutView = (() => {
   function setMode(m) {
     mode = m;
     connectFrom = null;
-    if (m === "splice" && viewMode !== "wires") setView("wires");
     document.querySelectorAll("#modeButtons button").forEach((b) => b.classList.toggle("active", b.dataset.mode === m));
     updateHint();
     render();
@@ -238,7 +237,7 @@ const LayoutView = (() => {
         connectFrom = n.id;
         sel = { type: "node", id: n.id };
         Model.changed();
-      } else if (mode === "splice" || mode === "jog") {
+      } else if (mode === "jog") {
         // clicked near (but not on) a line — find the closest segment
         const h = H();
         let best = null;
@@ -249,8 +248,7 @@ const LayoutView = (() => {
           if (!best || near.dist < best.near.dist) best = { seg, near };
         }
         if (best && best.near.dist < 40) {
-          if (mode === "splice") spliceAt(best.seg, best.near);
-          else jogAt(best.seg, best.near);
+          jogAt(best.seg, best.near);
         }
       }
     }
@@ -261,7 +259,6 @@ const LayoutView = (() => {
     e.preventDefault();
     const h = H();
     if (pendingMove) { completeMove(node.id); return; }
-    if (mode === "splice") { spliceAtNode(node); return; }
     if (mode === "delete") { deleteNode(node.id); return; }
     if (mode === "connect") {
       if (!connectFrom) {
@@ -300,7 +297,6 @@ const LayoutView = (() => {
     if (mode === "delete") { deleteSeg(seg.id); return; }
     if (mode === "point") { teeOff(seg, nearestOnPoly(pts, w)); return; }
     if (mode === "jog") { jogAt(seg, nearestOnPoly(pts, w)); return; }
-    if (mode === "splice") { spliceAt(seg, nearestOnPoly(pts, w)); return; }
     sel = { type: "seg", id: seg.id };
     render();
     renderSidebar();
@@ -546,99 +542,7 @@ const LayoutView = (() => {
     return n ? { x: n.x, y: n.y } : null;
   }
 
-  const findPoint = (h, id) => Routing.computeRuns(h).points.find((p) => pointId(p) === id) || null;
-
-  // Signals that physically reach a given point, so we only ever offer
-  // splices that could actually exist there.
-  function signalsReaching(h, { nodeId, segId }) {
-    const info = Routing.computeRuns(h);
-    return Model.get().signals.filter((sig) => {
-      if (nodeId) return (info.reach[sig.id] || new Set()).has(nodeId);
-      return info.wires.some((w) => w.sig.id === sig.id && w.steps.some((s) => s.segId === segId));
-    });
-  }
-
-  // Is this signal spliced at this point right now?
-  function splicedHere(h, point, sig) {
-    const entry = point && point.signals.find((s) => s.sig.id === sig.id);
-    return !!entry;
-  }
-
-  function spliceRecordFor(h, point) {
-    if (point.kind === "mid") return point.splice;
-    return Model.splicesOf(h).find((s) => s.nodeId === point.nodeId) || null;
-  }
-
-  /* state: "on" splice here · "off" explicitly don't (suppresses the automatic
-   * splice) · "clear" no opinion, so automatic behaviour applies */
-  function setSpliceSignal(h, locator, sig, state) {
-    let rec = locator.rec;
-    if (!rec) {
-      if (state === "clear") return;      // nothing to record
-      rec = { id: Model.uid("sp"), label: "", signalIds: [], exclude: [] };
-      if (locator.nodeId) rec.nodeId = locator.nodeId;
-      else { rec.segId = locator.segId; rec.t = locator.t; }
-      Model.splicesOf(h).push(rec);
-      locator.rec = rec;
-    }
-    rec.signalIds = (rec.signalIds || []).filter((id) => id !== sig.id);
-    rec.exclude = (rec.exclude || []).filter((id) => id !== sig.id);
-    if (state === "on") rec.signalIds.push(sig.id);
-    else if (state === "off") rec.exclude.push(sig.id);
-    // a record that neither splices nor suppresses anything is just clutter
-    h.splices = Model.splicesOf(h).filter((s) => (s.signalIds || []).length || (s.exclude || []).length);
-    Model.changed();
-  }
-
-  /* Splice tool: pick which signals splice at a spot. Works on a junction
-   * (nodeId) or part-way along a leg (segId + t). */
-  function spliceChooser(h, locator, title) {
-    const candidates = signalsReaching(h, locator);
-    if (!candidates.length) {
-      UI.modal("Nothing to splice here", el("div", {},
-        "No signal with two or more pins runs through this point. ",
-        "Assign a signal to several connectors first (Pinouts & Signals tab)."),
-        [{ label: "OK", primary: true }]);
-      return;
-    }
-    const rec = locator.rec || null;
-    const chosen = new Set((rec && rec.signalIds) || []);
-    const list = el("div", { class: "choice-list" });
-    for (const sig of candidates) {
-      const cb = el("input", { type: "checkbox" });
-      cb.checked = chosen.has(sig.id);
-      list.appendChild(el("label", { class: "check-row" }, cb, UI.swatch(sig.color), " ", sig.name,
-        el("span", { class: "muted small" }, ` · ${Model.signalUses(sig.id).filter((u) => u.harness.id === h.id).length} pins`)));
-      cb.addEventListener("change", () => { if (cb.checked) chosen.add(sig.id); else chosen.delete(sig.id); });
-    }
-    UI.modal(title, el("div", {},
-      el("div", { class: "hint-box" },
-        "Signals already splice automatically wherever their destinations branch. ",
-        "Use this to splice somewhere extra — several signals can share one point."),
-      list), [
-      { label: "Cancel" },
-      { label: "Place splice", primary: true, onClick: () => {
-        if (!chosen.size) return;
-        const loc = { ...locator, rec };
-        // only ticked signals are affected — the rest keep their automatic behaviour
-        for (const sig of candidates) {
-          setSpliceSignal(h, loc, sig, chosen.has(sig.id) ? "on" : "clear");
-        }
-        if (loc.rec) sel = { type: "splice", id: locator.nodeId ? "nd:" + locator.nodeId : "sp:" + loc.rec.id };
-        Model.changed();
-      } },
-    ]);
-  }
-
-  function spliceAt(seg, near) {
-    spliceChooser(H(), { segId: seg.id, t: near.t }, "Splice signals along this leg");
-  }
-
-  function spliceAtNode(node) {
-    const h = H();
-    spliceChooser(h, { nodeId: node.id, rec: Model.splicesOf(h).find((s) => s.nodeId === node.id) || null },
-      `Splice signals at ${Routing.nodeName(h, node.id)}`);
-  }
+  const findPoint = (h, id) => SpliceEdit.findPoint(h, id);
 
   function deleteNode(id) {
     const h = H();
@@ -740,30 +644,227 @@ const LayoutView = (() => {
     return Math.max(LANE_MIN, Math.min(LANE, BUNDLE_W / (count - 1)));
   }
 
-  function laneOffset(laneMap, segId, run) {
+  function laneOffset(laneMap, segId, run, orient) {
     const arr = laneMap[segId];
     if (!arr) return 0;
     const k = arr.indexOf(run);
-    return (k - (arr.length - 1) / 2) * laneStep(arr.length);
+    const side = orient ? (orient[segId] || 1) : 1;
+    return (k - (arr.length - 1) / 2) * laneStep(arr.length) * side;
   }
 
-  function wireGeometry(h, info) {
-    info = info || Routing.computeRuns(h);
+  /* Root the harness as a tree. Gives three things at once: a consistent
+   * "side" for lane offsets (legs are stored in arbitrary a/b order), a
+   * parent/child relation per leg, and DFS in/out numbers used to order
+   * wires by where they are heading. */
+  function rootedTree(h) {
+    const adj = {};
+    h.nodes.forEach((n) => { adj[n.id] = []; });
+    for (const s of h.segments) {
+      if (adj[s.a] && adj[s.b]) {
+        adj[s.a].push({ to: s.b, seg: s });
+        adj[s.b].push({ to: s.a, seg: s });
+      }
+    }
+    const parent = {}, orient = {}, child = {}, tin = {}, tout = {};
+    const seen = {};
+    let timer = 0;
+
+    const dirTo = (from, to) => {
+      const A = nodeById(h, from), B = nodeById(h, to);
+      if (!A || !B) return { x: 1, y: 0 };
+      const dx = B.x - A.x, dy = B.y - A.y;
+      const L = Math.hypot(dx, dy) || 1;
+      return { x: dx / L, y: dy / L };
+    };
+    // signed turn from the direction we arrived on to the direction of a branch
+    const turn = (inDir, c) =>
+      Math.atan2(inDir.x * c.y - inDir.y * c.x, inDir.x * c.x + inDir.y * c.y);
+
+    // start from an end of the harness so the flow runs along it, not outwards
+    // from the middle; ties broken by position to keep it deterministic
+    const roots = h.nodes.slice().sort((a, b) =>
+      ((adj[a.id] || []).length - (adj[b.id] || []).length) || (a.x - b.x) || (a.y - b.y));
+
+    for (const start of roots) {
+      if (seen[start.id]) continue;
+      seen[start.id] = true;
+      tin[start.id] = timer++;
+      const stack = [{ id: start.id, inDir: { x: 1, y: 0 }, kids: null, i: 0 }];
+      while (stack.length) {
+        const top = stack[stack.length - 1];
+        if (top.kids == null) {
+          // walk branches in geometric order — the one peeling off furthest to
+          // the left first — so a wire bound for a left-hand branch rides on
+          // the left of the bundle and never has to cross to reach it
+          top.kids = (adj[top.id] || []).slice().sort((p, q) =>
+            turn(top.inDir, dirTo(top.id, p.to)) - turn(top.inDir, dirTo(top.id, q.to)));
+        }
+        if (top.i >= top.kids.length) { tout[top.id] = timer; stack.pop(); continue; }
+        const e = top.kids[top.i++];
+        if (orient[e.seg.id] == null) orient[e.seg.id] = e.seg.a === top.id ? 1 : -1;
+        if (seen[e.to]) continue;
+        seen[e.to] = true;
+        parent[e.to] = top.id;
+        child[e.seg.id] = e.to;
+        tin[e.to] = timer++;
+        stack.push({ id: e.to, inDir: dirTo(top.id, e.to), kids: null, i: 0 });
+      }
+    }
+    for (const s of h.segments) if (orient[s.id] == null) orient[s.id] = 1;
+    return { parent, orient, child, tin, tout };
+  }
+
+  /* Which end of a wire is which node, so we can ask "where is this one
+   * heading". A splice part-way along a leg is treated as sitting at that
+   * leg's child end, just short of everything beyond it. */
+  function wireEndNodes(h, wire, tree) {
+    const resolve = (key) => {
+      if (Routing.isPinKey(key)) {
+        const connId = key.split(":")[1];
+        const f = Model.findConnector(connId);
+        return f ? { n: f.conn.nodeId, k: tree.tin[f.conn.nodeId] } : null;
+      }
+      if (Routing.isSpKey(key)) {
+        const sp = Model.splicesOf(h).find((x) => Routing.spKey(x.id) === key);
+        const c = sp && tree.child[sp.segId];
+        return c != null ? { n: c, k: tree.tin[c] - 0.5 } : null;
+      }
+      return tree.tin[key] != null ? { n: key, k: tree.tin[key] } : null;
+    };
+    return { A: resolve(wire.fromKey), B: resolve(wire.toKey) };
+  }
+
+  /* Order the wires on each leg by which way they are going, rather than by
+   * signal name. In a tree the destinations beyond any leg form contiguous
+   * DFS ranges, so wires bound for the same branch sit together and peel off
+   * from the edge of the bundle — which is what stops them crossing. */
+  function buildLaneMap(h, info, tree) {
     const laneMap = {};
+    const ends = new Map();
+    for (const w of info.wires) ends.set(w, wireEndNodes(h, w, tree));
     for (const w of info.wires) {
       const ids = new Set(w.steps.filter((s) => s.segId).map((s) => s.segId));
       for (const id of ids) (laneMap[id] = laneMap[id] || []).push(w);
     }
-    for (const arr of Object.values(laneMap)) arr.sort((a, b) => a.rank - b.rank);
-    const polys = info.wires.map((w) => runPolyline(h, w, laneMap));
-    return { ...info, runs: info.wires, laneMap, polys };
+    const inSub = (r, c) => r && tree.tin[r.n] >= tree.tin[c] && tree.tin[r.n] < tree.tout[c];
+    for (const [segId, arr] of Object.entries(laneMap)) {
+      const c = tree.child[segId];
+      const key = new Map();
+      for (const w of arr) {
+        const { A, B } = ends.get(w) || {};
+        let k;
+        if (c == null) k = w.rank;                       // leg outside the tree
+        else if (inSub(A, c) && !inSub(B, c)) k = A.k;
+        else if (inSub(B, c) && !inSub(A, c)) k = B.k;
+        else k = Math.min(A ? A.k : Infinity, B ? B.k : Infinity);
+        key.set(w, k);
+      }
+      arr.sort((a, b) => (key.get(a) - key.get(b)) || (a.rank - b.rank));
+    }
+    return laneMap;
+  }
+
+  function wireGeometry(h, info) {
+    info = info || Routing.computeRuns(h);
+    const tree = rootedTree(h);
+    const orient = tree.orient;
+    const laneMap = buildLaneMap(h, info, tree);
+    // first pass: lanes only, so we can see where each wire actually arrives
+    const raw = info.wires.map((w) => runPolyline(h, w, laneMap, orient));
+    const hubs = buildHubs(h, info, raw, laneMap);
+    const polys = info.wires.map((w, i) => snapEnds(h, raw[i], w, hubs));
+    return { ...info, runs: info.wires, laneMap, orient, tree, hubs, polys };
+  }
+
+  /* A splice stops being a single point that everything is dragged onto.
+   * Instead the node becomes a small zone, and each signal spliced there gets
+   * its own junction dot — placed on the average lane of the wires that meet
+   * there, and staggered along the run so several signals splicing at one
+   * point don't all pile onto the same cross-section. */
+  function buildHubs(h, info, raw, laneMap) {
+    const arrivals = {};
+    info.wires.forEach((w, i) => {
+      const p = raw[i];
+      if (!p || p.length < 2) return;
+      for (const [key, pt] of [[w.fromKey, p[0]], [w.toKey, p[p.length - 1]]]) {
+        if (Routing.isPinKey(key)) continue;
+        arrivals[key] = arrivals[key] || {};
+        (arrivals[key][w.sig.id] = arrivals[key][w.sig.id] || []).push(pt);
+      }
+    });
+
+    const out = {};
+    for (const point of info.points) {
+      const pos = splicePointPos(h, point);
+      if (!pos) continue;
+
+      // stagger along the busiest leg meeting here
+      let ax = 1, ay = 0;
+      if (point.kind === "mid") {
+        ax = pos.ux; ay = pos.uy;
+      } else {
+        let best = null, bestN = -1;
+        for (const s of segsAt(h, point.nodeId)) {
+          const n = (laneMap[s.id] || []).length;
+          if (n > bestN) { bestN = n; best = s; }
+        }
+        const node = nodeById(h, point.nodeId);
+        const other = best && nodeById(h, best.a === point.nodeId ? best.b : best.a);
+        if (node && other) {
+          const vx = other.x - node.x, vy = other.y - node.y;
+          const L = Math.hypot(vx, vy) || 1;
+          ax = vx / L; ay = vy / L;
+        }
+      }
+      const px = -ay, py = ax;
+
+      const sigs = point.signals.map((s) => s.sig);
+      const sigPos = {};
+      sigs.forEach((sig, i) => {
+        const stagger = (i - (sigs.length - 1) / 2) * HUB_STEP;
+        const arr = (arrivals[point.key] || {})[sig.id] || [];
+        let perp = 0;
+        if (arr.length) {
+          // centre the dot on the lanes of its own wires, so they barely deviate
+          perp = arr.reduce((a, p) => a + (p.x - pos.x) * px + (p.y - pos.y) * py, 0) / arr.length;
+        }
+        sigPos[sig.id] = { x: pos.x + px * perp + ax * stagger, y: pos.y + py * perp + ay * stagger };
+      });
+
+      let radius = 15;
+      for (const p of Object.values(sigPos)) {
+        radius = Math.max(radius, Math.hypot(p.x - pos.x, p.y - pos.y) + 11);
+      }
+      out[point.key] = { center: { x: pos.x, y: pos.y }, radius, sigPos, point };
+    }
+    return out;
+  }
+
+  /* Wires stop at the harness point a connector sits on — they don't fan out
+   * to the connector block itself. The block carries the per-pin colours, so
+   * nothing is lost, and the wires no longer cross each other trying to line
+   * up with pin order. */
+  function snapEnds(h, poly, wire, hubs) {
+    if (!poly || poly.length < 2) return poly || [];
+    const out = poly.slice();
+    const place = (idx, key) => {
+      const hub = hubs[key] && hubs[key].sigPos[wire.sig.id];
+      if (hub) { out[idx] = { x: hub.x, y: hub.y }; return; }
+      if (!Routing.isPinKey(key)) return;
+      const f = Model.findConnector(key.split(":")[1]);
+      const node = f && nodeById(h, f.conn.nodeId);
+      if (node) out[idx] = { x: node.x, y: node.y };
+    };
+    place(0, wire.fromKey);
+    place(out.length - 1, wire.toKey);
+    return out;
   }
 
   // Build one wire as a list of per-leg pieces, then join them with short
   // diagonal transitions so the lane change at a junction reads as a fan
   // rather than a kink. Steps with no segId are pin tails, already drawn as
   // the connector's own stub.
-  function runPolyline(h, wire, laneMap) {
+  function runPolyline(h, wire, laneMap, orient, hubs) {
     const pieces = [];
     for (const st of wire.steps) {
       if (!st.segId) continue;
@@ -772,7 +873,7 @@ const LayoutView = (() => {
       if (!pts) continue;
       const lo = Math.min(st.t0, st.t1), hi = Math.max(st.t0, st.t1);
       if (hi - lo < 1e-6) continue;
-      const part = offsetPoly(subPoly(pts, lo, hi), laneOffset(laneMap, st.segId, wire));
+      const part = offsetPoly(subPoly(pts, lo, hi), laneOffset(laneMap, st.segId, wire, orient));
       if (st.t0 > st.t1) part.reverse();
       pieces.push(part);
     }
@@ -803,7 +904,21 @@ const LayoutView = (() => {
   /* Hops: the wire with the higher rank arcs over the lower-ranked one.
    * Crossings at junctions (where a fan legitimately crosses) and shallow
    * near-parallel crossings are ignored — arcs there are just noise. */
-  function computeHops(polys, runs, nodes) {
+  /* Wherever the bundle is turning or splitting — a node, a bend, a splice
+   * zone — wires legitimately fan across one another, and an arc there is
+   * just noise. Hops are only drawn for crossings out in open run. */
+  function hopExclusions(h, geo) {
+    const zones = h.nodes.map((n) => ({ x: n.x, y: n.y, r: NODE_CLEAR }));
+    for (const seg of h.segments) {
+      for (const b of seg.bends || []) zones.push({ x: b.x, y: b.y, r: NODE_CLEAR });
+    }
+    for (const hub of Object.values(geo.hubs || {})) {
+      zones.push({ x: hub.center.x, y: hub.center.y, r: hub.radius + 8 });
+    }
+    return zones;
+  }
+
+  function computeHops(polys, runs, zones) {
     const hops = polys.map(() => ({}));
     const order = runs.map((_, i) => i).sort((a, b) => runs[a].rank - runs[b].rank);
     for (let oi = 1; oi < order.length; oi++) {
@@ -817,7 +932,7 @@ const LayoutView = (() => {
           for (let as = 0; as < A.length - 1; as++) {
             const x = segCross(B[bs], B[bs + 1], A[as], A[as + 1]);
             if (!x) continue;
-            if (nodes.some((n) => Math.hypot(n.x - x.x, n.y - x.y) < NODE_CLEAR)) continue;
+            if (zones.some((z) => Math.hypot(z.x - x.x, z.y - x.y) < z.r)) continue;
             (hops[j][bs] = hops[j][bs] || []).push(x.t);
           }
         }
@@ -944,10 +1059,23 @@ const LayoutView = (() => {
       }
     }
 
+    /* splice zones sit behind the wires, marking the junction area */
+    if (wiresOn) {
+      for (const point of routeInfo.points) {
+        const hub = geo.hubs[point.key];
+        if (!hub) continue;
+        const lit = !highlightSig || point.signals.some((s) => s.sig.id === highlightSig);
+        world.appendChild(svgEl("circle", {
+          cx: hub.center.x, cy: hub.center.y, r: hub.radius,
+          class: "splice-zone", opacity: lit ? null : DIM,
+        }));
+      }
+    }
+
     /* individual wires */
     if (wiresOn) {
       const polys = geo.polys.map((p) => (p.length > 1 ? p : []));
-      const hops = computeHops(polys, geo.runs, h.nodes);
+      const hops = computeHops(polys, geo.runs, hopExclusions(h, geo));
       // draw dimmed wires first so the highlighted signal sits on top
       const order = geo.runs.map((_, i) => i)
         .filter((i) => polys[i].length >= 2)
@@ -967,7 +1095,7 @@ const LayoutView = (() => {
 
     /* connectors (splay lines + stubs + boxes) */
     for (const conn of h.connectors) {
-      drawConnector(world, h, conn, wiresOn);
+      drawConnector(world, h, conn, wiresOn, geo);
     }
 
     /* splice points, in both views — explicit ones are solid, automatic ones
@@ -985,16 +1113,32 @@ const LayoutView = (() => {
         class: "splice-dot" + (selected ? " selected" : ""),
         opacity: lit ? null : DIM,
       });
-      const tint = sigs.length === 1 ? UI.visibleOnDark(sigs[0].color.base) : "#c7cedd";
-      g.appendChild(svgEl("circle", {
-        cx: pos.x, cy: pos.y, r: allAuto ? 5 : 6.5,
-        fill: allAuto ? "#161a23" : tint,
-        stroke: allAuto ? tint : "#f5f5f5",
-        "stroke-width": allAuto ? 2 : 1.8,
-        class: "splice-circle",
-      }));
-      if (sigs.length > 1) {
-        g.appendChild(svgEl("text", { x: pos.x, y: pos.y + 3.5, class: "splice-count" }, String(sigs.length)));
+      const hub = wiresOn && geo.hubs[point.key];
+      if (hub) {
+        // wire view: one junction dot per signal, where its wires come together
+        for (const { sig } of point.signals) {
+          const hp = hub.sigPos[sig.id];
+          if (!hp) continue;
+          const faded = highlightSig && sig.id !== highlightSig;
+          g.appendChild(svgEl("circle", {
+            cx: hp.x, cy: hp.y, r: 4.6,
+            fill: UI.visibleOnDark(sig.color.base),
+            class: "splice-junction",
+            opacity: faded ? 0.25 : null,
+          }, svgEl("title", {}, `${point.tag} · ${sig.name}`)));
+        }
+      } else {
+        const tint = sigs.length === 1 ? UI.visibleOnDark(sigs[0].color.base) : "#c7cedd";
+        g.appendChild(svgEl("circle", {
+          cx: pos.x, cy: pos.y, r: allAuto ? 5 : 6.5,
+          fill: allAuto ? "#161a23" : tint,
+          stroke: allAuto ? tint : "#f5f5f5",
+          "stroke-width": allAuto ? 2 : 1.8,
+          class: "splice-circle",
+        }));
+        if (sigs.length > 1) {
+          g.appendChild(svgEl("text", { x: pos.x, y: pos.y + 3.5, class: "splice-count" }, String(sigs.length)));
+        }
       }
 
       /* identifier flag */
@@ -1033,9 +1177,12 @@ const LayoutView = (() => {
     /* nodes on top */
     for (const node of h.nodes) {
       const isEndpoint = segsAt(h, node.id).length <= 1 || connsAt(h, node.id).length > 0;
+      const selectedNode = sel && sel.type === "node" && sel.id === node.id;
+      const faint = wiresOn && !selectedNode && connectFrom !== node.id && !pendingMove;
       const c = svgEl("circle", {
-        cx: node.x, cy: node.y, r: isEndpoint ? 7.5 : 5,
-        class: "node-dot " + (isEndpoint ? "node-endpoint" : "node-junction")
+        cx: node.x, cy: node.y,
+        r: faint ? (isEndpoint ? 4.5 : 3.5) : (isEndpoint ? 7.5 : 5),
+        class: "node-dot " + (faint ? "faint " : "") + (isEndpoint ? "node-endpoint" : "node-junction")
           + (sel && sel.type === "node" && sel.id === node.id ? " selected" : "")
           + (connectFrom === node.id ? " connect-from" : "")
           + (pendingMove ? " move-target" : ""),
@@ -1075,7 +1222,7 @@ const LayoutView = (() => {
     drawRunPath(parent, `M ${fmt(p1.x)} ${fmt(p1.y)} L ${fmt(p2.x)} ${fmt(p2.y)}`, sig, w);
   }
 
-  function drawConnector(world, h, conn, wiresOn) {
+  function drawConnector(world, h, conn, wiresOn, geo) {
     const node = nodeById(h, conn.nodeId);
     if (!node) return;
     const pos = connPos(h, conn);
@@ -1094,34 +1241,18 @@ const LayoutView = (() => {
     const carries = !!hlSig && pins.some((p) => conn.pins[p].signalId === hlSig.id);
     const outer = svgEl("g", hlSig && !carries ? { opacity: 0.28 } : {});
 
-    if (wiresOn && pins.length) {
-      // Wire view: each wire leaves the connector on its own stub.
-      outer.appendChild(svgEl("line", { x1: conv.x, y1: conv.y, x2: node.x, y2: node.y, class: "splay-line" }));
-      const shown = pins.slice(0, 18);
-      shown.forEach((p, i) => {
-        const off = (i - (shown.length - 1) / 2) * 4.5;
-        const s = { x: pos.x + ux * ext + px * off, y: pos.y + uy * ext + py * off };
-        const sig = Model.signal(conn.pins[p].signalId);
-        if (!sig) return;
-        const lit = !highlightSig || sig.id === highlightSig;
-        const sg = svgEl("g", lit ? {} : { opacity: DIM });
-        drawWire(sg, s, conv, sig, highlightSig && lit ? 3.8 : 3);
-        drawWire(sg, conv, { x: node.x, y: node.y }, sig, highlightSig && lit ? 2.8 : 2);
-        outer.appendChild(sg);
-      });
-    } else {
-      // Bundle view: one clean tether. Wire colors read off the box chips and
-      // the sidebar instead of hair-thin stubs that hide behind the box.
-      outer.appendChild(svgEl("line", {
-        x1: pos.x + ux * ext, y1: pos.y + uy * ext, x2: node.x, y2: node.y,
-        class: "splay-line" + (pins.length ? " bundled" : ""),
-        style: carries ? { stroke: UI.visibleOnDark(hlSig.color.base) } : null,
-      }));
-    }
+    // One clean tether in both views: individual wires stop at the harness
+    // point, and the per-pin colours live on the box chips instead. Fanning
+    // them out to the block only made them cross to reach pin order.
+    outer.appendChild(svgEl("line", {
+      x1: pos.x + ux * ext, y1: pos.y + uy * ext, x2: node.x, y2: node.y,
+      class: "splay-line" + (pins.length ? " bundled" : ""),
+      style: carries ? { stroke: UI.visibleOnDark(hlSig.color.base) } : null,
+    }));
 
     /* the connector box */
     const label = conn.label || spec.name;
-    const showChips = !wiresOn && pins.length > 0;
+    const showChips = pins.length > 0;
     const boxW = Math.max(78, label.length * 7.2 + 18) + (spec.imageData ? 34 : 0);
     const boxH = showChips ? 54 : 42;
     const g = svgEl("g", { transform: `translate(${pos.x - boxW / 2} ${pos.y - boxH / 2})` });
@@ -1231,7 +1362,7 @@ const LayoutView = (() => {
         el("p", {},
           el("kbd", {}, "V"), " select · ", el("kbd", {}, "A"), " add point · ",
           el("kbd", {}, "C"), " connect · ", el("kbd", {}, "J"), " jog · ",
-          el("kbd", {}, "S"), " splice · ", el("kbd", {}, "X"), " delete · ",
+          el("kbd", {}, "X"), " delete · ",
           el("kbd", {}, "Del"), " remove selected · ", el("kbd", {}, "Ctrl+Z"), " undo"),
         el("p", {}, "Select a connector point to attach connectors to it — a point can hold several (multiple multi-pin connectors, a stack of ring terminals, etc.)."),
         el("p", {}, "Use the Jog tool to put bends in a leg, and the Splice tool (in Wire view) to mark where a shared signal splits into individual wires.")));
@@ -1354,78 +1485,7 @@ const LayoutView = (() => {
     if (sel.type === "splice") {
       const point = findPoint(h, sel.id);
       if (!point) { sel = null; return buildSelectionPanel(h); }
-      const rec = spliceRecordFor(h, point);
-      const locator = point.kind === "mid"
-        ? { segId: point.segId, t: point.t, rec }
-        : { nodeId: point.nodeId, rec };
-      const unit = Model.get().unit;
-
-      sidebar.appendChild(el("h3", {}, "Splice ", el("span", { class: "splice-tag-pill" }, point.tag)));
-      sidebar.appendChild(el("div", { class: "muted small" },
-        point.kind === "mid" ? "Part-way along a leg" : `At ${Routing.nodeName(h, point.nodeId)}`));
-
-      if (rec) {
-        sidebar.appendChild(el("div", { class: "side-row" },
-          el("label", {}, "Name"),
-          el("input", {
-            value: rec.label || "", placeholder: Routing.spliceName(rec), style: { flex: 1 },
-            onchange: (e) => { rec.label = e.target.value.trim(); Model.changed(); },
-          })));
-      }
-
-      if (point.kind === "mid") {
-        const seg = segById(h, point.segId);
-        const posInfo = Routing.splicePosition(h, rec);
-        if (posInfo && seg) {
-          sidebar.appendChild(el("div", { class: "side-row" },
-            el("label", {}, `From ${Routing.nodeName(h, seg.a)}`),
-            el("input", {
-              type: "number", min: 0, max: posInfo.total, step: "any",
-              value: Math.round(posInfo.fromA * 10) / 10,
-              onchange: (e) => {
-                const v = Math.max(0, Math.min(posInfo.total, Number(e.target.value) || 0));
-                rec.t = posInfo.total ? v / posInfo.total : 0;
-                Model.changed();
-              },
-            }),
-            el("span", { class: "muted" }, unit)));
-          sidebar.appendChild(el("div", { class: "muted small" },
-            `${Math.round(posInfo.fromB * 10) / 10} ${unit} from ${Routing.nodeName(h, seg.b)} · leg is ${posInfo.total} ${unit}`));
-        } else {
-          sidebar.appendChild(el("div", { class: "muted small" },
-            "Set a length on this leg to position the splice by distance."));
-        }
-      }
-
-      /* which signals splice here */
-      sidebar.appendChild(el("h4", {}, "Signals spliced here"));
-      const reaching = signalsReaching(h, point.kind === "mid" ? { segId: point.segId } : { nodeId: point.nodeId });
-      const shown = [...new Set([...reaching, ...point.signals.map((s) => s.sig)])];
-      for (const sig of shown) {
-        const entry = point.signals.find((s) => s.sig.id === sig.id);
-        const on = !!entry;
-        const cb = el("input", { type: "checkbox" });
-        cb.checked = on;
-        cb.addEventListener("change", () => {
-          // unticking an automatic splice means "route straight through here"
-          setSpliceSignal(h, locator, sig, cb.checked ? "on" : "off");
-        });
-        sidebar.appendChild(el("label", { class: "check-row" }, cb, UI.swatch(sig.color),
-          el("span", { class: "pin-sig" }, sig.name),
-          entry && entry.auto ? el("span", { class: "sig-type-tag" }, "auto") : null));
-      }
-      sidebar.appendChild(el("div", { class: "hint-box" },
-        "Ticked signals splice here — one wire arrives and separate wires leave. ",
-        "Untick one to route it straight through as individual wires instead. ",
-        el("b", {}, "auto"), " marks a splice added automatically because the signal branches here."));
-
-      if (rec) {
-        sidebar.appendChild(el("button", { class: "danger", onclick: () => {
-          h.splices = Model.splicesOf(h).filter((x) => x.id !== rec.id);
-          sel = null;
-          Model.changed();
-        } }, point.kind === "mid" ? "Delete splice" : "Reset to automatic"));
-      }
+      SpliceEdit.panel(sidebar, h, point, { onDeleted: () => { sel = null; } });
       return;
     }
   }

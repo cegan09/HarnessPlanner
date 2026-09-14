@@ -15,6 +15,7 @@ const Main = (() => {
     currentHarnessId = id;
     if (!opts.skipRender) {
       LayoutView.onHarnessSwitched();
+      WireDiagram.onHarnessSwitched();
       renderAll();
     }
   }
@@ -40,6 +41,7 @@ const Main = (() => {
     document.querySelectorAll("#tabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
     document.querySelectorAll(".tabpane").forEach((p) => p.classList.toggle("active", p.id === "tab-" + name));
     if (name === "layout") LayoutView.render();
+    if (name === "wires") WireDiagram.render();
   }
 
   function activeTab() {
@@ -96,6 +98,7 @@ const Main = (() => {
         currentHarnessId = h.id;
         Model.changed();
         LayoutView.onHarnessSwitched();
+        WireDiagram.onHarnessSwitched();
       });
     });
     document.getElementById("btnRenameHarness").addEventListener("click", () => {
@@ -114,6 +117,7 @@ const Main = (() => {
         currentHarnessId = p.harnesses[0].id;
         Model.changed();
         LayoutView.onHarnessSwitched();
+        WireDiagram.onHarnessSwitched();
       });
     });
     document.getElementById("unitSelect").addEventListener("change", (e) => {
@@ -185,6 +189,7 @@ const Main = (() => {
     const p = Model.get();
     currentHarnessId = p.harnesses[0] ? p.harnesses[0].id : null;
     LayoutView.onHarnessSwitched();
+    WireDiagram.onHarnessSwitched();
     renderAll();
   }
 
@@ -310,13 +315,21 @@ const Main = (() => {
         return;
       }
       if (typing) return;
+      if (activeTab() === "wires") {
+        switch (e.key) {
+          case "v": case "V": WireDiagram.setMode("select"); break;
+          case "s": case "S": WireDiagram.setMode("splice"); break;
+          case "Escape": WireDiagram.escape(); break;
+          case "f": case "F": WireDiagram.fit(); break;
+        }
+        return;
+      }
       if (activeTab() !== "layout") return;
       switch (e.key) {
         case "v": case "V": LayoutView.setMode("select"); break;
         case "a": case "A": LayoutView.setMode("point"); break;
         case "c": case "C": LayoutView.setMode("connect"); break;
         case "j": case "J": LayoutView.setMode("jog"); break;
-        case "s": case "S": LayoutView.setMode("splice"); break;
         case "x": case "X": LayoutView.setMode("delete"); break;
         case "Delete": case "Backspace": LayoutView.deleteSelection(); break;
         case "Escape": LayoutView.escape(); break;
@@ -349,6 +362,7 @@ const Main = (() => {
     BuildSheetView.render();
     CompareView.render();
     LayoutView.render();
+    WireDiagram.render();
   }
 
   function init() {
@@ -361,6 +375,7 @@ const Main = (() => {
       t.addEventListener("click", () => showTab(t.dataset.tab));
     }
     LayoutView.init();
+    WireDiagram.init();
     Model.onChange(renderAll);
     Model.onStatus(renderSaveStatus);
     renderAll();

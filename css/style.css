@@ -216,6 +216,41 @@ body.dragging, body.dragging * {
   cursor: move;
 }
 .bend-handle:hover { stroke: var(--accent); fill: var(--accent-dim); }
+/* ---------- wire diagram tab ---------- */
+#wdCanvas {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  touch-action: none;
+  display: block;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#wdSidebar {
+  width: 300px;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  overflow-y: auto;
+  padding: 12px;
+}
+#wdSidebar h3 { margin: 0 0 8px; font-size: 15px; }
+#wdSidebar h4 { margin: 14px 0 6px; font-size: 12.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.wd-corridor { fill: #161b25; stroke: none; pointer-events: none; }
+.wd-tether { stroke: #454d5e; stroke-width: 1.5; stroke-dasharray: 4 4; }
+.wd-conn { fill: #232937; stroke: #3a4356; cursor: move; }
+.wd-conn:hover { stroke: var(--accent-dim); }
+.wd-conn.selected { stroke: var(--accent); stroke-width: 2; }
+.wd-flag { cursor: move; }
+.wd-node {
+  fill: #7c869b;
+  stroke: #0f1117;
+  stroke-width: 1.5;
+  cursor: move;
+}
+.wd-node:hover { fill: var(--accent); }
+.wd-node.selected { fill: var(--accent); stroke: #fff; }
+.splice-zone.selected { stroke: var(--accent); stroke-dasharray: none; }
+
 .seg-band {
   stroke: #232a38;
   fill: none;
@@ -226,6 +261,17 @@ body.dragging, body.dragging * {
 .splice-dot { cursor: pointer; }
 .splice-dot.selected .splice-circle { stroke: var(--accent); stroke-width: 3.4; }
 .splice-count { fill: #11151d; font-size: 9px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+.splice-zone {
+  fill: #4f8cff1c;
+  stroke: #4f8cff4d;
+  stroke-width: 1.4;
+  stroke-dasharray: 5 4;
+  pointer-events: none;
+}
+/* in wire view the splice zones and junction dots carry the meaning, so the
+   plain harness points step back out of the way */
+.node-dot.faint { opacity: 0.4; }
+.splice-junction { stroke: #0f1117; stroke-width: 1.2; }
 .splice-stem { stroke: #6b7382; stroke-width: 1.2; pointer-events: none; }
 .splice-flag { fill: #e8edf6; stroke: #6b7382; stroke-width: 1; }
 .splice-flag.auto { fill: #232a38; stroke: #8b93a7; }

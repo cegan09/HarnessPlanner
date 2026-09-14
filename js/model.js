@@ -49,6 +49,14 @@ const Model = (() => {
    * here, so those signals run through as separate wires instead. */
   const splicesOf = (h) => (h.splices = h.splices || []);
 
+  // Wire Diagram tag positions, keyed by splice point, so labels can be
+  // dragged clear of the wires without affecting anything else.
+  const labelOffsets = (h) => (h.labelOffsets = h.labelOffsets || {});
+
+  // Wire Diagram connector-block positions, keyed by connector id, so blocks
+  // can be dragged clear of the bundle without moving the harness itself.
+  const blockOffsets = (h) => (h.blockOffsets = h.blockOffsets || {});
+
   // Older files stored one signal per splice as `signalId`.
   function migrate(p) {
     for (const h of p.harnesses || []) {
@@ -580,7 +588,7 @@ const Model = (() => {
     listFrom, mergeLibrary, mergeSignals,
     changed, snapshot, commitFrom, undo, redo, canUndo, canRedo, onChange,
     harness, libItem, signal, findConnector, connSpec, pinPositions, pinPoints, pinLabel,
-    splicesOf, migrate, assignedPins, signalUses, mateStatus, mateFor,
+    splicesOf, labelOffsets, blockOffsets, migrate, assignedPins, signalUses, mateStatus, mateFor,
     removeConnector, removeNode, removeSegment, removeSignal, removeHarness,
   };
 })();

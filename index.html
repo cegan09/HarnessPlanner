@@ -37,6 +37,7 @@
 
 <nav id="tabs">
   <button class="tab active" data-tab="layout">Layout</button>
+  <button class="tab" data-tab="wires">Wire Diagram</button>
   <button class="tab" data-tab="pinout">Pinouts &amp; Signals</button>
   <button class="tab" data-tab="library">Connector Library</button>
   <button class="tab" data-tab="build">Build Sheet</button>
@@ -51,12 +52,10 @@
         <button data-mode="point" title="Click empty space to add a connector point; click a line to branch a leg off it (A)">📍 Add point</button>
         <button data-mode="connect" title="Click two points to join them; click empty space to chain new points (C)">🔗 Connect</button>
         <button data-mode="jog" title="Click a line to add a bend/jog point there; drag bends in Select mode (J)">⤵ Jog</button>
-        <button data-mode="splice" title="Wire view: click on the harness to place a splice where a signal splits into individual wires (S)">🔀 Splice</button>
         <button data-mode="delete" title="Click anything to delete it (X)">✂ Delete</button>
       </div>
-      <div class="tool-group" id="viewButtons">
-        <button data-view="bundle" class="active" title="Show the harness as a bundle with wire stubs at each connector">Bundle view</button>
-        <button data-view="wires" title="Route every individual wire along the harness">Wire view</button>
+      <div class="tool-group" id="viewButtons" hidden>
+        <button data-view="bundle" class="active">Bundle view</button>
       </div>
       <div class="tool-group">
         <button id="btnFit" title="Zoom to fit">⛶ Fit</button>
@@ -67,6 +66,24 @@
     <div id="layoutMain">
       <svg id="canvas"></svg>
       <aside id="layoutSidebar"></aside>
+    </div>
+  </section>
+
+  <section id="tab-wires" class="tabpane">
+    <div id="layoutToolbar">
+      <div class="tool-group" id="wdModeButtons">
+        <button data-wdmode="select" class="active" title="Select and drag points, connector blocks and splice tags">🖱 Select</button>
+        <button data-wdmode="splice" title="Click a harness point or a leg to choose which signals splice there">🔀 Splice</button>
+      </div>
+      <div class="tool-group">
+        <button id="wdFit" title="Zoom to fit">⛶ Fit</button>
+        <button id="wdReset" title="Put connector blocks and splice tags back to their default positions">↺ Reset placement</button>
+      </div>
+      <span class="toolbar-hint" id="wdHint"></span>
+    </div>
+    <div id="layoutMain">
+      <svg id="wdCanvas"></svg>
+      <aside id="wdSidebar"></aside>
     </div>
   </section>
 
@@ -82,9 +99,11 @@
 <script src="js/storage.js"></script>
 <script src="js/model.js"></script>
 <script src="js/routing.js"></script>
+<script src="js/splices.js"></script>
 <script src="js/library.js"></script>
 <script src="js/pinout.js"></script>
 <script src="js/layout.js"></script>
+<script src="js/wirediagram.js"></script>
 <script src="js/buildsheet.js"></script>
 <script src="js/compare.js"></script>
 <script src="js/app.js"></script>
