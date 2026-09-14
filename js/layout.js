@@ -1015,7 +1015,7 @@ const LayoutView = (() => {
 
     const defs = svgEl("defs", {});
     const pat = svgEl("pattern", { id: "gridPattern", width: 40, height: 40, patternUnits: "userSpaceOnUse" });
-    pat.appendChild(svgEl("circle", { cx: 1, cy: 1, r: 1, fill: "#252b38" }));
+    pat.appendChild(svgEl("circle", { cx: 1, cy: 1, r: 1, fill: "var(--grid-dot)" }));
     defs.appendChild(pat);
     svg.appendChild(defs);
     const bgRect = svgEl("rect", { x: 0, y: 0, width: "100%", height: "100%", fill: "url(#gridPattern)" });
@@ -1122,13 +1122,13 @@ const LayoutView = (() => {
           const faded = highlightSig && sig.id !== highlightSig;
           g.appendChild(svgEl("circle", {
             cx: hp.x, cy: hp.y, r: 4.6,
-            fill: UI.visibleOnDark(sig.color.base),
+            fill: UI.inkFor(sig.color.base),
             class: "splice-junction",
             opacity: faded ? 0.25 : null,
           }, svgEl("title", {}, `${point.tag} · ${sig.name}`)));
         }
       } else {
-        const tint = sigs.length === 1 ? UI.visibleOnDark(sigs[0].color.base) : "#c7cedd";
+        const tint = sigs.length === 1 ? UI.inkFor(sigs[0].color.base) : "var(--node-end)";
         g.appendChild(svgEl("circle", {
           cx: pos.x, cy: pos.y, r: allAuto ? 5 : 6.5,
           fill: allAuto ? "#161a23" : tint,
@@ -1205,11 +1205,11 @@ const LayoutView = (() => {
       if (sigs.length) {
         const lh = 19;
         const lg = svgEl("g", { transform: "translate(12 12)" });
-        lg.appendChild(svgEl("rect", { x: 0, y: 0, width: 195, height: sigs.length * lh + 14, rx: 8, fill: "#171b24ee", stroke: "#2c3242" }));
+        lg.appendChild(svgEl("rect", { x: 0, y: 0, width: 195, height: sigs.length * lh + 14, rx: 8, fill: "var(--legend-fill)", stroke: "var(--line)" }));
         sigs.forEach((s, i) => {
           const y = 15 + i * lh;
           drawRunPath(lg, `M 12 ${y} L 44 ${y}`, s, 4);
-          lg.appendChild(svgEl("text", { x: 52, y: y + 4, fill: "#dfe4ee", "font-size": 12 }, s.name));
+          lg.appendChild(svgEl("text", { x: 52, y: y + 4, fill: "var(--text)", "font-size": 12 }, s.name));
         });
         svg.appendChild(lg);
       }
@@ -1247,7 +1247,7 @@ const LayoutView = (() => {
     outer.appendChild(svgEl("line", {
       x1: pos.x + ux * ext, y1: pos.y + uy * ext, x2: node.x, y2: node.y,
       class: "splay-line" + (pins.length ? " bundled" : ""),
-      style: carries ? { stroke: UI.visibleOnDark(hlSig.color.base) } : null,
+      style: carries ? { stroke: UI.inkFor(hlSig.color.base) } : null,
     }));
 
     /* the connector box */
@@ -1287,7 +1287,7 @@ const LayoutView = (() => {
         const isHl = hlSig && sig.id === hlSig.id;
         g.appendChild(svgEl("rect", {
           x: cx, y: chipY, width: chipW, height: chipH, rx: 2,
-          fill: sig.color.base, stroke: isHl ? "#ffffff" : "#ffffff40", "stroke-width": isHl ? 1.8 : 1,
+          fill: sig.color.base, stroke: isHl ? "var(--text)" : "var(--chip-edge)", "stroke-width": isHl ? 1.8 : 1,
         }, svgEl("title", {}, `Pin ${Model.pinLabel(spec, p)}: ${sig.name}`)));
         if (sig.color.style === "striped") {
           g.appendChild(svgEl("rect", {

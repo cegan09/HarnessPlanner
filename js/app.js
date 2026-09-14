@@ -4,6 +4,7 @@
 const Main = (() => {
   const { el } = UI;
   let currentHarnessId = null;
+  let printRestore = null;
   let mateIssueSet = new Set();
   let badMates = [];
 
@@ -50,6 +51,18 @@ const Main = (() => {
   }
 
   /* ---------- top bar ---------- */
+
+  function setTheme(t) {
+    const applied = UI.setTheme(t);
+    const btn = document.getElementById("btnTheme");
+    if (btn) {
+      btn.textContent = applied === "dark" ? "◐" : "◑";
+      btn.title = applied === "dark"
+        ? "Dark theme — switch to light (light prints properly)"
+        : "Light theme — switch back to dark";
+    }
+    return applied;
+  }
 
   function renderTopbar() {
     const p = Model.get();
@@ -124,6 +137,25 @@ const Main = (() => {
       Model.get().unit = e.target.value;
       Model.changed();
     });
+    document.getElementById("btnTheme").addEventListener("click", () => {
+      setTheme(UI.getTheme() === "dark" ? "light" : "dark");
+      Model.setPref("theme", UI.getTheme());
+    });
+
+    /* Printing on the dark theme wastes a cartridge and reads badly, so swap
+     * to light for the duration and put it back afterwards. The canvases are
+     * SVG built in JS, so they need a re-render to pick the new colours up. */
+    window.addEventListener("beforeprint", () => {
+      printRestore = UI.getTheme();
+      if (printRestore === "dark") { setTheme("light"); renderAll(); }
+      if (activeTab() === "wires") WireDiagram.fit();
+      else if (activeTab() === "layout") LayoutView.fit();
+    });
+    window.addEventListener("afterprint", () => {
+      if (printRestore && printRestore !== UI.getTheme()) { setTheme(printRestore); renderAll(); }
+      printRestore = null;
+    });
+
     document.getElementById("btnUndo").addEventListener("click", () => Model.undo());
     document.getElementById("btnRedo").addEventListener("click", () => Model.redo());
     document.getElementById("mateAlert").addEventListener("click", () => {
@@ -367,6 +399,7 @@ const Main = (() => {
 
   function init() {
     Model.load();
+    setTheme(Model.getPrefs().theme || "dark");
     currentHarnessId = Model.get().harnesses[0].id;
     bindTopbar();
     bindKeys();

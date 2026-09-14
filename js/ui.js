@@ -50,20 +50,43 @@ const UI = (() => {
     return (r * 299 + g * 587 + b * 114) / 1000 > 140 ? "#111" : "#fff";
   }
 
-  // Lighten a wire color just enough to stay visible against the dark canvas
-  // (black/dark-brown wires would otherwise vanish when drawn as a line).
-  function visibleOnDark(hex, min = 105) {
+  /* ---------- theme ---------- */
+
+  let theme = "dark";
+
+  function setTheme(t) {
+    theme = t === "light" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", theme);
+    return theme;
+  }
+
+  const getTheme = () => theme;
+
+  // Nudge a wire colour until it reads against the canvas: lighten dark wires
+  // on the dark canvas, darken pale ones (white, yellow) on the light one.
+  // Swatches and chips keep the true colour — this is only for drawn lines.
+  function inkFor(hex) {
     if (!/^#[0-9a-f]{6}$/i.test(hex || "")) return hex;
     const n = parseInt(hex.slice(1), 16);
     let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    const lum = () => (r * 299 + g * 587 + b * 114) / 1000;
     let guard = 0;
-    while ((r * 299 + g * 587 + b * 114) / 1000 < min && guard++ < 40) {
-      r = Math.round(r + (255 - r) * 0.2);
-      g = Math.round(g + (255 - g) * 0.2);
-      b = Math.round(b + (255 - b) * 0.2);
+    if (theme === "light") {
+      while (lum() > 200 && guard++ < 40) {
+        r = Math.round(r * 0.86); g = Math.round(g * 0.86); b = Math.round(b * 0.86);
+      }
+    } else {
+      while (lum() < 105 && guard++ < 40) {
+        r = Math.round(r + (255 - r) * 0.2);
+        g = Math.round(g + (255 - g) * 0.2);
+        b = Math.round(b + (255 - b) * 0.2);
+      }
     }
     return "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
   }
+
+  // kept for older call sites
+  const visibleOnDark = inkFor;
 
   function swatchCSS(color) {
     if (!color) return "transparent";
@@ -291,5 +314,5 @@ const UI = (() => {
     img.src = url;
   }
 
-  return { el, svgEl, PALETTE, contrast, visibleOnDark, swatch, swatchCSS, colorName, colorLabel, nearestColorName, pinGrid, modal, closeModal, promptText, confirmBox, choose, download, saveJSON, openJSON, fileToDataURL };
+  return { el, svgEl, PALETTE, contrast, inkFor, visibleOnDark, setTheme, getTheme, swatch, swatchCSS, colorName, colorLabel, nearestColorName, pinGrid, modal, closeModal, promptText, confirmBox, choose, download, saveJSON, openJSON, fileToDataURL };
 })();

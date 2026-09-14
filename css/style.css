@@ -10,6 +10,58 @@
   --danger: #e5534b;
   --warn: #e3a008;
   --ok: #3fb950;
+
+  /* canvas tokens — overridden wholesale by the light theme below */
+  --grid-dot: #252b38;
+  --trunk: #5c6577;
+  --trunk-thin: #454d5e;
+  --node-end: #b9c2d4;
+  --node-mid: #6b7382;
+  --node-ring: #0f1117;
+  --block-fill: #232937;
+  --block-line: #3a4356;
+  --corridor: #161b25;
+  --band: #232a38;
+  --tether: #454d5e;
+  --flag-fill: #e8edf6;
+  --flag-text: #11151d;
+  --flag-auto-fill: #232a38;
+  --flag-auto-text: #dfe4ee;
+  --chip-edge: #ffffff40;
+  --legend-fill: #171b24ee;
+}
+
+/* Light theme, chiefly so wire diagrams print on white paper */
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --panel: #f4f6fa;
+  --panel2: #e8ecf3;
+  --line: #c6ccd8;
+  --text: #16191f;
+  --muted: #5b6474;
+  --accent: #1d5fd0;
+  --accent-dim: #bcd0f5;
+  --danger: #c0362e;
+  --warn: #9a6b00;
+  --ok: #1d7a33;
+
+  --grid-dot: #d7dce6;
+  --trunk: #98a1b3;
+  --trunk-thin: #b4bccb;
+  --node-end: #58627a;
+  --node-mid: #7b8496;
+  --node-ring: #ffffff;
+  --block-fill: #ffffff;
+  --block-line: #9aa3b4;
+  --corridor: #eef1f7;
+  --band: #e6eaf2;
+  --tether: #9aa3b4;
+  --flag-fill: #2b3242;
+  --flag-text: #ffffff;
+  --flag-auto-fill: #ffffff;
+  --flag-auto-text: #2b3242;
+  --chip-edge: #00000055;
+  --legend-fill: #ffffffee;
 }
 
 * { box-sizing: border-box; }
@@ -129,7 +181,7 @@ main { flex: 1; min-height: 0; display: flex; }
 .tabpane.active { display: flex; }
 
 /* ---------- layout tab ---------- */
-#layoutToolbar {
+#layoutToolbar, #wdToolbar {
   display: flex;
   align-items: center;
   gap: 14px;
@@ -140,7 +192,7 @@ main { flex: 1; min-height: 0; display: flex; }
 .tool-group { display: flex; gap: 4px; }
 .toolbar-hint { color: var(--muted); font-size: 12.5px; }
 
-#layoutMain { flex: 1; display: flex; min-height: 0; }
+#layoutMain, #wdMain { flex: 1; display: flex; min-height: 0; }
 #canvas {
   flex: 1;
   min-width: 0;
@@ -189,21 +241,21 @@ body.dragging, body.dragging * {
 
 /* svg canvas elements */
 .seg-hit { stroke: transparent; stroke-width: 16; fill: none; cursor: pointer; }
-.seg-trunk { stroke: #5c6577; stroke-width: 7; stroke-linecap: round; fill: none; pointer-events: none; }
-.seg-trunk.thin { stroke-width: 2.5; stroke: #454d5e; }
+.seg-trunk { stroke: var(--trunk); stroke-width: 7; stroke-linecap: round; fill: none; pointer-events: none; }
+.seg-trunk.thin { stroke-width: 2.5; stroke: var(--trunk-thin); }
 .seg-trunk.selected { stroke: var(--accent); }
 .seg-label { fill: var(--muted); font-size: 12px; text-anchor: middle; pointer-events: none; }
-.node-dot { cursor: pointer; stroke: #0f1117; stroke-width: 1.5; }
-.node-endpoint { fill: #b9c2d4; }
-.node-junction { fill: #6b7382; }
+.node-dot { cursor: pointer; stroke: var(--node-ring); stroke-width: 1.5; }
+.node-endpoint { fill: var(--node-end); }
+.node-junction { fill: var(--node-mid); }
 .node-dot.selected { fill: var(--accent); }
 .node-dot.connect-from { stroke: var(--warn); stroke-width: 3; }
 .node-dot.move-target { stroke: var(--accent); stroke-width: 2.5; }
 .node-dot.move-target:hover { fill: var(--accent); }
-.splay-line { stroke: #454d5e; stroke-width: 2; fill: none; pointer-events: none; }
-.splay-line.bundled { stroke: #5c6577; stroke-width: 4; stroke-linecap: round; }
+.splay-line { stroke: var(--tether); stroke-width: 2; fill: none; pointer-events: none; }
+.splay-line.bundled { stroke: var(--trunk); stroke-width: 4; stroke-linecap: round; }
 .conn-box.highlighted { stroke: var(--accent); stroke-width: 2.5; }
-.conn-box { fill: #232937; stroke: #3a4356; rx: 7; cursor: pointer; }
+.conn-box { fill: var(--block-fill); stroke: var(--block-line); rx: 7; cursor: pointer; }
 .conn-box.selected { stroke: var(--accent); stroke-width: 2; }
 .conn-label { fill: var(--text); font-size: 12.5px; pointer-events: none; }
 .conn-sub { fill: var(--muted); font-size: 10.5px; pointer-events: none; }
@@ -235,24 +287,24 @@ body.dragging, body.dragging * {
 }
 #wdSidebar h3 { margin: 0 0 8px; font-size: 15px; }
 #wdSidebar h4 { margin: 14px 0 6px; font-size: 12.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.wd-corridor { fill: #161b25; stroke: none; pointer-events: none; }
-.wd-tether { stroke: #454d5e; stroke-width: 1.5; stroke-dasharray: 4 4; }
-.wd-conn { fill: #232937; stroke: #3a4356; cursor: move; }
+.wd-corridor { fill: var(--corridor); stroke: none; pointer-events: none; }
+.wd-tether { stroke: var(--tether); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.wd-conn { fill: var(--block-fill); stroke: var(--block-line); cursor: move; }
 .wd-conn:hover { stroke: var(--accent-dim); }
 .wd-conn.selected { stroke: var(--accent); stroke-width: 2; }
 .wd-flag { cursor: move; }
 .wd-node {
-  fill: #7c869b;
-  stroke: #0f1117;
+  fill: var(--node-mid);
+  stroke: var(--node-ring);
   stroke-width: 1.5;
   cursor: move;
 }
 .wd-node:hover { fill: var(--accent); }
-.wd-node.selected { fill: var(--accent); stroke: #fff; }
+.wd-node.selected { fill: var(--accent); stroke: var(--node-ring); }
 .splice-zone.selected { stroke: var(--accent); stroke-dasharray: none; }
 
 .seg-band {
-  stroke: #232a38;
+  stroke: var(--band);
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -260,7 +312,7 @@ body.dragging, body.dragging * {
 }
 .splice-dot { cursor: pointer; }
 .splice-dot.selected .splice-circle { stroke: var(--accent); stroke-width: 3.4; }
-.splice-count { fill: #11151d; font-size: 9px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+.splice-count { fill: var(--flag-text); font-size: 9px; font-weight: 700; text-anchor: middle; pointer-events: none; }
 .splice-zone {
   fill: #4f8cff1c;
   stroke: #4f8cff4d;
@@ -271,19 +323,19 @@ body.dragging, body.dragging * {
 /* in wire view the splice zones and junction dots carry the meaning, so the
    plain harness points step back out of the way */
 .node-dot.faint { opacity: 0.4; }
-.splice-junction { stroke: #0f1117; stroke-width: 1.2; }
-.splice-stem { stroke: #6b7382; stroke-width: 1.2; pointer-events: none; }
-.splice-flag { fill: #e8edf6; stroke: #6b7382; stroke-width: 1; }
-.splice-flag.auto { fill: #232a38; stroke: #8b93a7; }
+.splice-junction { stroke: var(--node-ring); stroke-width: 1.2; }
+.splice-stem { stroke: var(--node-mid); stroke-width: 1.2; pointer-events: none; }
+.splice-flag { fill: var(--flag-fill); stroke: var(--node-mid); stroke-width: 1; }
+.splice-flag.auto { fill: var(--flag-auto-fill); stroke: var(--muted); }
 .splice-flag.selected { stroke: var(--accent); stroke-width: 2; }
 .splice-flag-text {
-  fill: #11151d;
+  fill: var(--flag-text);
   font-size: 10.5px;
   font-weight: 700;
   text-anchor: middle;
   pointer-events: none;
 }
-.splice-flag-text.auto { fill: #dfe4ee; }
+.splice-flag-text.auto { fill: var(--flag-auto-text); }
 .splice-tag-pill {
   display: inline-block;
   background: var(--panel2);
@@ -376,7 +428,7 @@ body.dragging, body.dragging * {
 .small { font-size: 12px; }
 
 .pin-grid { max-width: 100%; }
-.pin-body { fill: #1c212d; stroke: #3a4356; stroke-width: 1.5; }
+.pin-body { fill: var(--block-fill); stroke: var(--block-line); stroke-width: 1.5; }
 .pin-num { font-size: 12px; font-weight: 600; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 .pin-circle { stroke: #00000088; stroke-width: 1; }
 .pin.clickable:hover .pin-circle { stroke: var(--accent); stroke-width: 2.5; }
@@ -543,9 +595,13 @@ body.col-resizing * { user-select: none !important; }
   body { background: #fff; color: #000; display: block; overflow: visible; }
   #topbar, #tabs, .compare-pickers, #modalHost { display: none !important; }
   main { display: block; }
+  /* print whatever tab is on screen — the build sheet, or a wire diagram */
   .tabpane { display: none !important; }
-  #tab-build { display: block !important; }
+  .tabpane.active { display: block !important; }
   #tab-build .compare-body { overflow: visible; padding: 0; }
+  #layoutToolbar, #wdToolbar, #layoutSidebar, #wdSidebar { display: none !important; }
+  #layoutMain, #wdMain { display: block; }
+  #canvas, #wdCanvas { width: 100%; height: 92vh; }
   .sheet-table th { background: #eee; color: #000; }
   .sheet-table { max-width: none !important; width: 100% !important; font-size: 10.5px; }
   .sheet-table td, .sheet-table th { white-space: normal; overflow-wrap: break-word; }

@@ -26,6 +26,7 @@
     <option value="cm">cm</option>
     <option value="ft">feet</option>
   </select>
+  <button id="btnTheme" title="Switch between dark and light — light prints properly">◐</button>
   <button id="btnUndo" title="Undo (Ctrl+Z)">↩</button>
   <button id="btnRedo" title="Redo (Ctrl+Y)">↪</button>
   <button id="btnOpen" title="Open a project file from your disk">Open</button>
@@ -70,7 +71,7 @@
   </section>
 
   <section id="tab-wires" class="tabpane">
-    <div id="layoutToolbar">
+    <div id="wdToolbar">
       <div class="tool-group" id="wdModeButtons">
         <button data-wdmode="select" class="active" title="Select and drag points, connector blocks and splice tags">🖱 Select</button>
         <button data-wdmode="splice" title="Click a harness point or a leg to choose which signals splice there">🔀 Splice</button>
@@ -81,7 +82,7 @@
       </div>
       <span class="toolbar-hint" id="wdHint"></span>
     </div>
-    <div id="layoutMain">
+    <div id="wdMain">
       <svg id="wdCanvas"></svg>
       <aside id="wdSidebar"></aside>
     </div>

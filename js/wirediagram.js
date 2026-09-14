@@ -287,8 +287,11 @@ const WireDiagram = (() => {
           if (w.fromKey !== point.key && w.toKey !== point.key) continue;
           const seq = corridorSeq(sk, paths.get(w));
           if (!seq.length) continue;
-          const end = w.fromKey === point.key ? seq[0] : seq[seq.length - 1];
-          hits.push(end);
+          // take the end of the run that actually touches this splice — the
+          // near end for a wire leaving it, the far end for one arriving
+          const leaving = w.fromKey === point.key;
+          const run = leaving ? seq[0] : seq[seq.length - 1];
+          hits.push({ co: run.co, near: leaving ? run.start : run.end });
         }
         if (!hits.length) continue;
         const lineOf = (s) => lineCoord(s.co, laneIdx(s.co, sig, info, laneOf));
@@ -300,7 +303,7 @@ const WireDiagram = (() => {
         } else {
           const s = hits[0];
           const l = lineOf(s);
-          const at = alongOf(s.co, s.end);
+          const at = alongOf(s.co, s.near);
           pos = s.co.ax === "h" ? { x: at, y: l } : { x: l, y: at };
         }
         (spliceAt[point.key] = spliceAt[point.key] || {})[sig.id] = pos;
@@ -531,12 +534,12 @@ const WireDiagram = (() => {
     g.dataset.sig = sig.name;
     if (title) g.appendChild(svgEl("title", {}, title));
     g.appendChild(svgEl("path", {
-      d, fill: "none", stroke: UI.visibleOnDark(sig.color.base),
+      d, fill: "none", stroke: UI.inkFor(sig.color.base),
       "stroke-width": width, "stroke-linejoin": "round", "stroke-linecap": "round",
     }));
     if (sig.color.style === "striped") {
       g.appendChild(svgEl("path", {
-        d, fill: "none", stroke: UI.visibleOnDark(sig.color.stripe),
+        d, fill: "none", stroke: UI.inkFor(sig.color.stripe),
         "stroke-width": width, "stroke-dasharray": "7 7", "stroke-linejoin": "round",
       }));
     }
@@ -697,14 +700,23 @@ const WireDiagram = (() => {
     let list = pins;
     const slots = Math.max(1, Math.floor((avail + gap) / (chipW + gap)));
     if (pins.length > slots) list = pins.slice(0, Math.max(1, slots - 1));
+    const chipH = 6, chipY = by + boxH - 10;
     list.forEach((p, i) => {
       const sig = Model.signal(conn.pins[p].signalId);
       if (!sig) return;
       const isHl = hlSig && sig.id === hlSig.id;
+      const cx = bx + 8 + i * (chipW + gap);
       g.appendChild(svgEl("rect", {
-        x: bx + 8 + i * (chipW + gap), y: by + boxH - 10, width: chipW, height: 6, rx: 2,
-        fill: sig.color.base, stroke: isHl ? "#fff" : "#ffffff40", "stroke-width": isHl ? 1.6 : 1,
-      }, svgEl("title", {}, `Pin ${Model.pinLabel(spec, p)}: ${sig.name}`)));
+        x: cx, y: chipY, width: chipW, height: chipH, rx: 2,
+        fill: sig.color.base, stroke: isHl ? "var(--text)" : "var(--chip-edge)", "stroke-width": isHl ? 1.6 : 1,
+      }, svgEl("title", {}, `Pin ${Model.pinLabel(spec, p)}: ${sig.name} (${UI.colorLabel(sig.color)})`)));
+      // striped wire gets its tracer on the chip too, same as the Layout tab
+      if (sig.color.style === "striped") {
+        g.appendChild(svgEl("rect", {
+          x: cx + 1, y: chipY + chipH - 3, width: chipW - 2, height: 2.2, rx: 1,
+          fill: sig.color.stripe, "pointer-events": "none",
+        }));
+      }
     });
     world.appendChild(g);
   }
@@ -748,7 +760,7 @@ const WireDiagram = (() => {
       if (!p) continue;
       cx += p.x; cy += p.y;
       g.appendChild(svgEl("circle", {
-        cx: p.x, cy: p.y, r: DOT_R, fill: UI.visibleOnDark(sig.color.base), class: "splice-junction",
+        cx: p.x, cy: p.y, r: DOT_R, fill: UI.inkFor(sig.color.base), class: "splice-junction",
         opacity: highlightSig && sig.id !== highlightSig ? 0.3 : null,
       }, svgEl("title", {}, `${point.tag} · ${sig.name}`)));
     }

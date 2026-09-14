@@ -67,6 +67,10 @@ A schematic-style view of every individual wire, derived automatically from the 
 - The **🔀 Splice** tool lives here: click a harness point or a leg and tick which signals splice there.
 - `V` select · `S` splice · `F` fit · `Esc` cancel.
 
+### Light / dark
+
+The **◐** button in the top bar switches between the dark working theme
+
 ### Splices
 
 When signals route to multiple destinations a splice is assumed at the nearest junction. This keeps the wire view easier to follow. Signals can be removed from automatic splices if you need to run separate wires for the same signal for whatever reason.
